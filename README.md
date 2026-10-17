@@ -159,11 +159,14 @@ VideoLuwak resolves `ffmpeg`/`ffprobe` in this order (first hit wins):
 2. `VIDEOLUWAK_FFMPEG` / `VIDEOLUWAK_FFPROBE` environment variables.
 3. Next to the executable (or in a `tools/` subfolder).
 4. **Embedded binaries** (Windows release builds only).
-5. The system `PATH`.
+5. The system `PATH`, plus the standard macOS package-manager locations
+   (`/opt/homebrew/bin`, `/usr/local/bin`, `/opt/local/bin`) on macOS.
 
 - **Windows** — the portable build embeds static `ffmpeg.exe`/`ffprobe.exe` inside the executable
   and extracts them to a per-user cache on first run, so it runs with **no external installation**.
 - **Linux/macOS** — the app uses the **system** ffmpeg/ffprobe from `PATH` (nothing is embedded).
+  Apps opened from Finder or the Dock inherit launchd's minimal `PATH`, which omits Homebrew and
+  MacPorts, so the macOS build also searches their standard install directories automatically.
 
 To embed the Windows binaries before publishing, fetch them once:
 
