@@ -3,11 +3,11 @@ using VideoLuwak.Core.Abstractions;
 namespace VideoLuwak.Core.Ffmpeg;
 
 /// <summary>
-/// Resolves the ffmpeg / ffprobe executables for the current platform.
+/// Resolves the FFmpeg / FFprobe executables for the current platform.
 /// Resolution order (first hit wins): explicit override -&gt; <c>VIDEOLUWAK_*</c>
 /// environment variable -&gt; application directory (including a <c>tools</c>
-/// subfolder) -&gt; embedded resource (Windows release builds only) -&gt; system
-/// <c>PATH</c> plus the standard macOS package-manager locations.
+/// subfolder) -&gt; system <c>PATH</c> plus the standard macOS package-manager
+/// locations.
 /// </summary>
 public sealed class FfmpegLocator : IFfmpegLocator
 {
@@ -15,7 +15,7 @@ public sealed class FfmpegLocator : IFfmpegLocator
     private const string FfprobeEnvironmentVariable = "VIDEOLUWAK_FFPROBE";
 
     /// <summary>
-    /// Directories where package managers install ffmpeg on macOS. Finder- and
+    /// Directories where package managers install FFmpeg on macOS. Finder- and
     /// Dock-launched applications inherit launchd's minimal PATH
     /// (<c>/usr/bin:/bin:/usr/sbin:/sbin</c>), which never includes Homebrew or
     /// MacPorts, so the shell PATH alone is not enough for the GUI build.
@@ -92,12 +92,6 @@ public sealed class FfmpegLocator : IFfmpegLocator
         if (fromApplicationDirectory is not null)
         {
             return fromApplicationDirectory;
-        }
-
-        if (EmbeddedFfmpegProvider.TryExtract(EmbeddedResourceName(baseName), ExecutableFileName(baseName), out var embedded)
-            && IsExistingFile(embedded))
-        {
-            return embedded;
         }
 
         return TryFindOnPath(baseName, out var onPath) ? onPath : null;
@@ -220,9 +214,6 @@ public sealed class FfmpegLocator : IFfmpegLocator
     private static IReadOnlyList<string> ExecutableFileNames(string baseName) =>
         OperatingSystem.IsWindows() ? [baseName + ".exe", baseName] : [baseName];
 
-    private static string EmbeddedResourceName(string baseName) =>
-        $"VideoLuwak.ffmpeg.win-x64.{baseName}.exe";
-
     private static bool IsExistingFile(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -241,5 +232,5 @@ public sealed class FfmpegLocator : IFfmpegLocator
     }
 
     private static string BuildNotFoundMessage(string executable, string environmentVariable) =>
-        $"Could not locate '{executable}'. Install ffmpeg and add it to PATH, place it next to the application (or in a 'tools' subfolder), set the {environmentVariable} environment variable, or pass an explicit executable path.";
+        $"Could not locate '{executable}'. Install FFmpeg and add it to PATH, place it next to the application (or in a 'tools' subfolder), set the {environmentVariable} environment variable, or pass an explicit executable path.";
 }

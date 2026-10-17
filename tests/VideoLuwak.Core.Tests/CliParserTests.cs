@@ -81,6 +81,15 @@ public sealed class CliParserTests
     }
 
     [Fact]
+    public void Parse_SetupFfmpeg_SetsFlag()
+    {
+        var result = CliParser.Parse(["--setup-ffmpeg"]);
+
+        result.Error.Should().BeNull();
+        result.Options.SetupFfmpeg.Should().BeTrue();
+    }
+
+    [Fact]
     public void Parse_UnknownOption_ReturnsErrorWithoutThrowing()
     {
         var act = () => CliParser.Parse(["--bogus"]);

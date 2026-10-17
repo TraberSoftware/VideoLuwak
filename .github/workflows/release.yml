@@ -131,10 +131,16 @@ jobs:
             echo
             echo "| Platform | File |"
             echo "| --- | --- |"
-            echo "| Windows x64 (portable, ffmpeg embedded) | \`VideoLuwak-${VERSION}-win-x64.zip\` |"
-            echo "| Linux x64 (requires system ffmpeg) | \`VideoLuwak-${VERSION}-linux-x64.tar.gz\` |"
-            echo "| macOS Apple Silicon (requires system ffmpeg) | \`VideoLuwak-${VERSION}-macos-arm64.dmg\` |"
-            echo "| macOS Intel (requires system ffmpeg) | \`VideoLuwak-${VERSION}-macos-x64.dmg\` |"
+            echo "| Windows x64 (portable exe; FFmpeg required, first-run setup available) | \`VideoLuwak-${VERSION}-win-x64.zip\` |"
+            echo "| Linux x64 (FFmpeg required) | \`VideoLuwak-${VERSION}-linux-x64.tar.gz\` |"
+            echo "| macOS Apple Silicon (FFmpeg required) | \`VideoLuwak-${VERSION}-macos-arm64.dmg\` |"
+            echo "| macOS Intel (FFmpeg required) | \`VideoLuwak-${VERSION}-macos-x64.dmg\` |"
+            echo
+            echo "## Requirements"
+            echo
+            echo "FFmpeg and FFprobe are required. VideoLuwak does not bundle them. On Windows,"
+            echo "first-run setup can install FFmpeg automatically with winget. On Linux and macOS,"
+            echo "install FFmpeg with your package manager and make it available on PATH."
             echo
             echo "## ${RANGE_TITLE}"
             echo
@@ -174,7 +180,7 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Install ffmpeg for integration tests
+      - name: Install FFmpeg for integration tests
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends ffmpeg
@@ -216,11 +222,6 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Fetch ffmpeg for the embedded Windows build
-        if: matrix.kind == 'windows'
-        shell: pwsh
-        run: ./scripts/fetch-ffmpeg.ps1
-
       - name: Publish self-contained single-file build
         shell: bash
         env:
@@ -253,42 +254,60 @@ jobs:
           Copy-Item -Path (Join-Path $env:GITHUB_WORKSPACE "LICENSE") -Destination $stage -Force
           Copy-Item -Path (Join-Path $env:GITHUB_WORKSPACE "THIRD_PARTY_NOTICES.md") -Destination $stage -Force
           Copy-Item -Path (Join-Path $env:GITHUB_WORKSPACE "README.md") -Destination $stage -Force
-          Copy-Item -Path (Join-Path $env:GITHUB_WORKSPACE "LICENSES") -Destination $stage -Recurse -Force
           Compress-Archive -Path $stage -DestinationPath (Join-Path $artifacts "VideoLuwak-$env:VERSION-win-x64.zip") -Force
 
-      - name: Smoke test the portable Windows build without ffmpeg on PATH
+      - name: Smoke test FFmpeg setup and the portable Windows build
         if: matrix.kind == 'windows'
         shell: pwsh
         run: |
-          $ffmpeg = Join-Path $env:GITHUB_WORKSPACE "assets/ffmpeg/win-x64/ffmpeg.exe"
+          $app = Join-Path $env:RUNNER_TEMP "publish/VideoLuwak.exe"
           $input = Join-Path $env:RUNNER_TEMP "smoke.mp4"
           $output = Join-Path $env:RUNNER_TEMP "smoke-out"
+
+          $setup = Start-Process -FilePath $app -ArgumentList @("--setup-ffmpeg") -Wait -PassThru
+          if ($setup.ExitCode -ne 0) {
+            throw "FFmpeg first-run setup failed with exit code $($setup.ExitCode)."
+          }
+
+          $ffmpeg = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
+          if (-not $ffmpeg) {
+            $links = Join-Path $env:LOCALAPPDATA "Microsoft/WinGet/Links"
+            $candidate = Join-Path $links "ffmpeg.exe"
+            if (Test-Path $candidate) {
+              $ffmpeg = $candidate
+              $env:PATH = "$links;$env:PATH"
+            }
+          }
+          if (-not $ffmpeg) {
+            $packageRoot = Join-Path $env:LOCALAPPDATA "Microsoft/WinGet/Packages"
+            $candidate = Get-ChildItem -Path $packageRoot -Recurse -Filter "ffmpeg.exe" -ErrorAction SilentlyContinue |
+              Select-Object -First 1 -ExpandProperty FullName
+            if ($candidate) {
+              $ffmpeg = $candidate
+              $env:PATH = "$(Split-Path $candidate);$env:PATH"
+            }
+          }
+          if (-not $ffmpeg) {
+            throw "FFmpeg was not found after the first-run setup."
+          }
 
           & $ffmpeg -hide_banner -loglevel error -y `
             -f lavfi -i "testsrc=size=320x240:rate=30:duration=2" `
             -f lavfi -i "sine=frequency=440:duration=2" `
-            -map 0:v -map 1:a -c:v libx264 -g 30 -pix_fmt yuv420p -c:a aac $input
+            -map 0:v -map 1:a -c:v mpeg4 -q:v 5 -g 30 -pix_fmt yuv420p -c:a aac $input
           if ($LASTEXITCODE -ne 0) {
             throw "Could not create the smoke-test video."
           }
 
           if (Test-Path $output) { Remove-Item -Recurse -Force $output }
 
-          # Strip ffmpeg from PATH: the published exe must use its embedded binaries.
-          $originalPath = $env:PATH
-          try {
-            $env:PATH = "$env:SystemRoot\System32"
-            $process = Start-Process `
-              -FilePath (Join-Path $env:RUNNER_TEMP "publish/VideoLuwak.exe") `
-              -ArgumentList @($input, "-o", $output) `
-              -Wait `
-              -PassThru
-            if ($process.ExitCode -ne 0) {
-              throw "Published VideoLuwak.exe failed with exit code $($process.ExitCode)."
-            }
-          }
-          finally {
-            $env:PATH = $originalPath
+          $process = Start-Process `
+            -FilePath $app `
+            -ArgumentList @($input, "-o", $output) `
+            -Wait `
+            -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Published VideoLuwak.exe failed with exit code $($process.ExitCode)."
           }
 
           $audio = Get-ChildItem -Path (Join-Path $output "smoke/audio") -Filter "*.wav" -ErrorAction SilentlyContinue
@@ -307,7 +326,6 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/stage/VideoLuwak" "${RUNNER_TEMP}/artifacts"
           cp -a "${RUNNER_TEMP}/publish/." "${RUNNER_TEMP}/stage/VideoLuwak/"
           cp LICENSE THIRD_PARTY_NOTICES.md README.md "${RUNNER_TEMP}/stage/VideoLuwak/"
-          cp -R LICENSES "${RUNNER_TEMP}/stage/VideoLuwak/"
           tar -C "${RUNNER_TEMP}/stage" -czf \
             "${RUNNER_TEMP}/artifacts/VideoLuwak-${VERSION}-linux-x64.tar.gz" \
             VideoLuwak

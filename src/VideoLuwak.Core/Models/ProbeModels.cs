@@ -32,7 +32,7 @@ public sealed record AudioStreamInfo
 }
 
 /// <summary>
-/// Result of probing a video file with ffprobe.
+/// Result of probing a video file with FFprobe.
 /// </summary>
 public sealed record ProbeResult
 {

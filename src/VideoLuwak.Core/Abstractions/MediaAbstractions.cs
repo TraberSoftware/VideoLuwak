@@ -2,7 +2,7 @@ using VideoLuwak.Core.Models;
 
 namespace VideoLuwak.Core.Abstractions;
 
-/// <summary>Inspects media containers via ffprobe.</summary>
+/// <summary>Inspects media containers via FFprobe.</summary>
 public interface IFfprobeService
 {
     Task<ProbeResult> ProbeAsync(string videoPath, CancellationToken cancellationToken = default);

@@ -1,6 +1,6 @@
 namespace VideoLuwak.Core;
 
-/// <summary>Thrown when ffmpeg or ffprobe cannot be located on the current system.</summary>
+/// <summary>Thrown when FFmpeg or FFprobe cannot be located on the current system.</summary>
 public sealed class FfmpegNotFoundException : Exception
 {
     public FfmpegNotFoundException(string message) : base(message)
@@ -12,7 +12,7 @@ public sealed class FfmpegNotFoundException : Exception
     }
 }
 
-/// <summary>Thrown when an ffmpeg / ffprobe invocation fails.</summary>
+/// <summary>Thrown when an FFmpeg / FFprobe invocation fails.</summary>
 public sealed class FfmpegExecutionException : Exception
 {
     public FfmpegExecutionException(string message, int exitCode, string standardError)

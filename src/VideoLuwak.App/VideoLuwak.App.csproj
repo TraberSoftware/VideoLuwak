@@ -33,23 +33,4 @@
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
-  <!-- Windows portable ffmpeg embedding.
-       The static ffmpeg/ffprobe binaries fetched by scripts/fetch-ffmpeg.ps1 are embedded as
-       resources ONLY when building/publishing for a Windows target AND the assets are present.
-       Linux/macOS builds never embed and resolve the system ffmpeg from PATH instead. -->
-  <PropertyGroup>
-    <_WindowsFfmpegDir>$(MSBuildThisFileDirectory)../../assets/ffmpeg/win-x64</_WindowsFfmpegDir>
-    <_EmbedWindowsFfmpeg>false</_EmbedWindowsFfmpeg>
-    <_EmbedWindowsFfmpeg Condition="('$(RuntimeIdentifier)' == 'win-x64' Or '$(RuntimeIdentifier)' == 'win-arm64' Or '$(RuntimeIdentifier)' == 'win-x86' Or ($([MSBuild]::IsOSPlatform('Windows')) And '$(RuntimeIdentifier)' == '')) And Exists('$(_WindowsFfmpegDir)/ffmpeg.exe') And Exists('$(_WindowsFfmpegDir)/ffprobe.exe')">true</_EmbedWindowsFfmpeg>
-  </PropertyGroup>
-
-  <ItemGroup Condition="'$(_EmbedWindowsFfmpeg)' == 'true'">
-    <EmbeddedResource Include="$(_WindowsFfmpegDir)/ffmpeg.exe">
-      <LogicalName>VideoLuwak.ffmpeg.win-x64.ffmpeg.exe</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="$(_WindowsFfmpegDir)/ffprobe.exe">
-      <LogicalName>VideoLuwak.ffmpeg.win-x64.ffprobe.exe</LogicalName>
-    </EmbeddedResource>
-  </ItemGroup>
-
 </Project>

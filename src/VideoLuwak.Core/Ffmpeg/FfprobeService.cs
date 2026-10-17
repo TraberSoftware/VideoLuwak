@@ -43,7 +43,7 @@ public sealed class FfprobeService : IFfprobeService
         if (!result.Succeeded)
         {
             throw new FfmpegExecutionException(
-                $"ffprobe failed with exit code {result.ExitCode} while probing '{videoPath}'.",
+                $"FFprobe failed with exit code {result.ExitCode} while probing '{videoPath}'.",
                 result.ExitCode,
                 result.StandardError);
         }

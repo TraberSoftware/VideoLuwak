@@ -19,6 +19,34 @@ public static class OutputLayout
     public const string FinalKeyframesFolderName = "final_keyframes";
     public const string AudioDescriptionFileName = "audio_streams.json";
     public const string ResultFileName = "processing_result.json";
+    private const string EscapedNameSuffix = " (output)";
+
+    private static readonly string[] MacOsPackageExtensions =
+    [
+        ".app",
+        ".bundle",
+        ".framework",
+        ".plugin",
+        ".kext",
+        ".prefpane",
+        ".qlgenerator",
+        ".mdimporter",
+        ".saver",
+        ".xcodeproj",
+        ".xcworkspace",
+        ".playground",
+        ".docset",
+        ".rtfd",
+        ".sparsebundle",
+        ".fcpbundle",
+        ".logicx",
+        ".band",
+        ".imovielibrary",
+        ".photoslibrary",
+        ".musiclibrary",
+        ".tvlibrary",
+        ".aplibrary",
+    ];
 
     /// <summary>Root directory where this video's output folder lives.</summary>
     public static string GetOutputDirectory(string videoPath, string? outputBaseDirectory)
@@ -30,7 +58,7 @@ public static class OutputLayout
             ? Path.GetDirectoryName(videoFullPath)!
             : Path.GetFullPath(outputBaseDirectory);
 
-        var name = SanitizeName(Path.GetFileNameWithoutExtension(videoFullPath));
+        var name = EscapeMacOsPackageName(SanitizeName(Path.GetFileNameWithoutExtension(videoFullPath)));
         return Path.Combine(baseRoot, name);
     }
 
@@ -66,5 +94,23 @@ public static class OutputLayout
 
         var result = sb.ToString().Trim().TrimEnd('.');
         return result.Length == 0 ? "video" : result;
+    }
+
+    /// <summary>
+    /// Keeps the generated output directory from being treated as a macOS bundle.
+    /// Finder displays any folder whose name ends with an application/package
+    /// extension (notably <c>.app</c>) as an opaque app instead of a folder.
+    /// </summary>
+    private static string EscapeMacOsPackageName(string name)
+    {
+        foreach (var extension in MacOsPackageExtensions)
+        {
+            if (name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+            {
+                return name + EscapedNameSuffix;
+            }
+        }
+
+        return name;
     }
 }

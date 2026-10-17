@@ -27,15 +27,17 @@ internal static class Program
         return 0;
     }
 
-    /// <summary>Wires up the ffmpeg-backed pipeline and runs the CLI workflow.</summary>
+    /// <summary>Wires up the FFmpeg-backed pipeline and runs the CLI workflow.</summary>
     private static int RunCli(string[] args)
     {
         var settings = new VideoLuwak.Core.Config.SettingsStore();
         var parsed = VideoLuwak.Core.Cli.CliParser.Parse(args);
-        var processor = VideoLuwak.Core.Composition.ExtractorFactory.CreateVideoProcessor(
+        var locator = VideoLuwak.Core.Composition.ExtractorFactory.CreateLocator(
             parsed.Options.FfmpegPath,
             parsed.Options.FfprobePath);
-        var runner = new VideoLuwak.Core.Cli.CliRunner(processor, settings);
+        var processor = VideoLuwak.Core.Composition.ExtractorFactory.CreateVideoProcessor(locator);
+        var setup = new VideoLuwak.Core.Ffmpeg.FfmpegSetupService(locator, new VideoLuwak.Core.Ffmpeg.ProcessRunner());
+        var runner = new VideoLuwak.Core.Cli.CliRunner(processor, settings, setup);
 
         return runner
             .RunAsync(args, Console.Out, Console.Error)

@@ -32,6 +32,7 @@ public static class CliParser
         bool? loudNorm = null;
         var showHelp = false;
         var showVersion = false;
+        var setupFfmpeg = false;
         var positionalOnly = false;
 
         for (var i = 0; i < args.Count; i++)
@@ -68,6 +69,10 @@ public static class CliParser
 
                 case "--version":
                     showVersion = true;
+                    break;
+
+                case "--setup-ffmpeg":
+                    setupFfmpeg = true;
                     break;
 
                 case "-o":
@@ -244,6 +249,7 @@ public static class CliParser
             AudioNormalizeLoudness = loudNorm,
             ShowHelp = showHelp,
             ShowVersion = showVersion,
+            SetupFfmpeg = setupFfmpeg,
         };
 
         return new CliParseResult(options, null);
@@ -254,7 +260,7 @@ public static class CliParser
     {
         return
 """
-VideoLuwak - portable ffmpeg-based video keyframe & audio extractor
+VideoLuwak - portable FFmpeg-based video keyframe & audio extractor
 
 Usage:
   VideoLuwak [options] <video> [<video> ...]
@@ -276,8 +282,9 @@ Options:
       --highpass <hz>       High-pass filter cutoff, >= 0; 0 disables (default 0).
       --loudnorm            Apply EBU R128 loudness normalization (default off).
       --no-loudnorm         Disable loudness normalization (default).
-      --ffmpeg <path>       Explicit ffmpeg executable path.
-      --ffprobe <path>      Explicit ffprobe executable path.
+      --ffmpeg <path>       Explicit FFmpeg executable path.
+      --ffprobe <path>      Explicit FFprobe executable path.
+      --setup-ffmpeg        Install FFmpeg/FFprobe if missing, then exit.
   -h, --help                Show this help and exit.
       --version             Show version information and exit.
 

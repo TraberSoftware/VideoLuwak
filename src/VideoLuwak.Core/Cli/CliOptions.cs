@@ -38,6 +38,9 @@ public sealed class CliOptions
     public bool ShowHelp { get; init; }
 
     public bool ShowVersion { get; init; }
+
+    /// <summary>Run the FFmpeg/FFprobe setup check and installation, then exit.</summary>
+    public bool SetupFfmpeg { get; init; }
 }
 
 /// <summary>Result of <see cref="CliParser.Parse"/>: options plus an optional error message.</summary>

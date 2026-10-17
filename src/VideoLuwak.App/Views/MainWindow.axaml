@@ -67,7 +67,7 @@
           </Border>
           <StackPanel Spacing="1" VerticalAlignment="Center">
             <TextBlock Text="VideoLuwak" Classes="wordmark" />
-            <TextBlock Text="ffmpeg keyframe &amp; audio extractor" Classes="appSubtitle" />
+            <TextBlock Text="FFmpeg keyframe &amp; audio extractor" Classes="appSubtitle" />
           </StackPanel>
         </StackPanel>
 

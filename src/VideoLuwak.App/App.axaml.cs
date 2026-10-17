@@ -5,6 +5,7 @@ using VideoLuwak.App.ViewModels;
 using VideoLuwak.App.Views;
 using VideoLuwak.Core.Composition;
 using VideoLuwak.Core.Config;
+using VideoLuwak.Core.Ffmpeg;
 
 namespace VideoLuwak.App;
 
@@ -18,8 +19,10 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var settingsStore = new SettingsStore();
-            var processor = ExtractorFactory.CreateVideoProcessor();
-            var viewModel = new MainWindowViewModel(settingsStore, processor);
+            var locator = ExtractorFactory.CreateLocator();
+            var processor = ExtractorFactory.CreateVideoProcessor(locator);
+            var ffmpegSetup = new FfmpegSetupService(locator, new ProcessRunner());
+            var viewModel = new MainWindowViewModel(settingsStore, processor, ffmpegSetup);
 
             desktop.MainWindow = new MainWindow { DataContext = viewModel };
 

@@ -3,31 +3,24 @@
 VideoLuwak is released under the [MIT License](LICENSE). It depends on the following third-party
 software. Test-only packages are not included in the published binaries.
 
-## ffmpeg and ffprobe (Windows portable build)
+## FFmpeg and FFprobe (system dependency, not bundled)
 
-The Windows portable build embeds `ffmpeg.exe` and `ffprobe.exe` as independent executables. They
-are invoked as child processes by VideoLuwak and are not linked into the application.
+VideoLuwak does not distribute FFmpeg or FFprobe binaries. Both are required system dependencies and
+are resolved from an explicit path, the `VIDEOLUWAK_FFMPEG` / `VIDEOLUWAK_FFPROBE` environment
+variables, the application directory, or `PATH`.
 
-The binaries are downloaded by `scripts/fetch-ffmpeg.ps1` from the
-[gyan.dev FFmpeg builds](https://www.gyan.dev/ffmpeg/builds/) and are built with
-`--enable-gpl --enable-version3`. They are therefore distributed under the
-**GNU General Public License, version 3 (GPLv3)**.
+Windows first-run setup can install FFmpeg automatically with `winget` (the
+`Gyan.FFmpeg.Essentials` package). That installation is performed by the user's package manager;
+VideoLuwak does not redistribute the downloaded binaries. Linux and macOS users install FFmpeg with
+their system package manager.
 
-The script pins `ffmpeg-8.1.2-essentials_build.zip` and verifies its SHA-256 before extracting the
-binaries.
+FFmpeg is licensed under the GNU Lesser General Public License v2.1 or later by default, but builds
+that include GPL-covered optional parts are licensed under the GPL. The exact terms depend on the
+build installed on the user's system. See the official FFmpeg legal page:
+<https://ffmpeg.org/legal.html>.
 
-- FFmpeg project: <https://ffmpeg.org/>
-- FFmpeg source code: <https://github.com/FFmpeg/FFmpeg>
-- Windows build information: <https://www.gyan.dev/ffmpeg/builds/>
-- A copy of the GPLv3 text is included at [LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt).
-
-If you redistribute a VideoLuwak build that contains these binaries, you are responsible for
-complying with the GPLv3, including making the corresponding source code available. The fetch
-script verifies the pinned archive but does not download the corresponding source archive; include
-the source (or a written offer) with public release assets.
-
-Linux and macOS builds do not embed ffmpeg; they use the system `ffmpeg`/`ffprobe` installed by the
-user.
+FFmpeg is a trademark of Fabrice Bellard. VideoLuwak is not endorsed by or affiliated with the
+FFmpeg project.
 
 ## Runtime dependencies
 

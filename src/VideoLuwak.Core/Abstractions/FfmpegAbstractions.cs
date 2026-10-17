@@ -28,7 +28,7 @@ public sealed record ProcessResult
     public bool Succeeded => ExitCode == 0 && !TimedOut;
 }
 
-/// <summary>Runs external processes (ffmpeg / ffprobe) with line streaming.</summary>
+/// <summary>Runs external processes (FFmpeg / FFprobe) with line streaming.</summary>
 public interface IProcessRunner
 {
     Task<ProcessResult> RunAsync(
@@ -39,9 +39,9 @@ public interface IProcessRunner
 }
 
 /// <summary>
-/// Resolves the ffmpeg / ffprobe executables for the current platform.
-/// Resolution order: explicit override -> app directory -> embedded resource
-/// (Windows) -> system PATH.
+/// Resolves the FFmpeg / FFprobe executables for the current platform.
+/// Resolution order: explicit override -> environment variable -> app directory
+/// -> system PATH (including standard macOS package-manager locations).
 /// </summary>
 public interface IFfmpegLocator
 {

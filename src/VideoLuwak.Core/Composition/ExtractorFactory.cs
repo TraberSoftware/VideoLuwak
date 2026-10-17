@@ -12,17 +12,25 @@ namespace VideoLuwak.Core.Composition;
 /// </summary>
 public static class ExtractorFactory
 {
-    /// <summary>Creates an ffmpeg / ffprobe locator with optional explicit overrides.</summary>
+    /// <summary>Creates an FFmpeg / FFprobe locator with optional explicit overrides.</summary>
     public static IFfmpegLocator CreateLocator(string? ffmpegPath = null, string? ffprobePath = null) =>
         new FfmpegLocator(ffmpegPath, ffprobePath);
 
     /// <summary>
-    /// Creates a fully wired <see cref="IVideoProcessor"/> using system/embedded ffmpeg
+    /// Creates a fully wired <see cref="IVideoProcessor"/> using system FFmpeg
     /// (or the supplied explicit executable paths).
     /// </summary>
-    public static IVideoProcessor CreateVideoProcessor(string? ffmpegPath = null, string? ffprobePath = null)
+    public static IVideoProcessor CreateVideoProcessor(string? ffmpegPath = null, string? ffprobePath = null) =>
+        CreateVideoProcessor(CreateLocator(ffmpegPath, ffprobePath));
+
+    /// <summary>
+    /// Creates a fully wired <see cref="IVideoProcessor"/> using an existing locator. Callers that
+    /// also perform FFmpeg setup can share the same locator so explicit overrides stay consistent.
+    /// </summary>
+    public static IVideoProcessor CreateVideoProcessor(IFfmpegLocator locator)
     {
-        var locator = CreateLocator(ffmpegPath, ffprobePath);
+        ArgumentNullException.ThrowIfNull(locator);
+
         var runner = new ProcessRunner();
 
         var ffprobe = new FfprobeService(locator, runner);

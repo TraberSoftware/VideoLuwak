@@ -11,7 +11,7 @@
 #
 # The bundle is ad-hoc signed (codesign --sign -) because release builds do not
 # have an Apple Developer ID / notarization profile. Users may still need to
-# right-click > Open the first time. The app expects ffmpeg/ffprobe on PATH.
+# right-click > Open the first time. The app expects FFmpeg/FFprobe on PATH.
 set -euo pipefail
 
 if [[ $# -ne 4 ]]; then
@@ -146,15 +146,11 @@ for file in LICENSE THIRD_PARTY_NOTICES.md README.md; do
   fi
 done
 
-if [[ -d "${SCRIPT_DIR}/../LICENSES" ]]; then
-  cp -R "${SCRIPT_DIR}/../LICENSES" "${STAGE_DIR}/"
-fi
-
 cat > "${STAGE_DIR}/README.txt" <<'EOF'
 VideoLuwak
 ==========
 
-VideoLuwak uses ffmpeg/ffprobe. Install them first, for example:
+VideoLuwak uses FFmpeg/FFprobe. Install them first, for example:
 
     brew install ffmpeg
 

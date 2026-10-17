@@ -11,11 +11,6 @@ publish/
 .vs/
 *.user
 
-# Bundled ffmpeg binaries (fetched via scripts/fetch-ffmpeg.ps1)
-assets/ffmpeg/*/*.exe
-assets/ffmpeg/*/*.dll
-assets/ffmpeg/*/SHA256SUMS.txt
-
 # Oh My Openagent files
 .omo/
 

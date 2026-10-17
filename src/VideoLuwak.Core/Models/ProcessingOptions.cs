@@ -58,7 +58,7 @@ public sealed record ProcessingOptions
     /// <summary>Optional explicit ffmpeg executable path (overrides auto-discovery).</summary>
     public string? FfmpegPath { get; init; }
 
-    /// <summary>Optional explicit ffprobe executable path (overrides auto-discovery).</summary>
+    /// <summary>Optional explicit FFprobe executable path (overrides auto-discovery).</summary>
     public string? FfprobePath { get; init; }
 
     public static ProcessingOptions Default { get; } = new();

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="#releases-github-actions"><img alt="Version 1.0.0" src="https://img.shields.io/badge/version-1.0.0-2F8F83?style=flat-square"></a>
+  <a href="https://github.com/TraberSoftware/VideoLuwak/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/TraberSoftware/VideoLuwak?display_name=tag&sort=semver&style=flat-square&color=2F8F83"></a>
   <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white">
   <img alt="Windows, Linux, macOS" src="https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-2F8F83?style=flat-square">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2F8F83?style=flat-square"></a>
@@ -27,7 +27,7 @@
 </p>
 
 VideoLuwak is a small, portable **.NET 10** desktop and command-line utility that pulls the useful
-content out of a video using **ffmpeg** — every audio stream as a separate WAV, every keyframe as an
+content out of a video using **FFmpeg** — every audio stream as a separate WAV, every keyframe as an
 image, and a perceptually de-duplicated copy of those keyframes — then reports how much smaller the
 result is.
 
@@ -93,8 +93,9 @@ produced, and how many keyframes survived de-duplication.
 ## Quick start
 
 1. **Download a release.** Grab the latest Windows, Linux, or macOS build from
-   [Releases](#releases-github-actions). The Windows build is portable and embeds ffmpeg; Linux and
-   macOS use the system `ffmpeg`/`ffprobe`.
+   [Releases](#releases-github-actions). FFmpeg is a system requirement on every platform. On
+   Windows, the first processing run shows a notice and installs it automatically with `winget`;
+   Linux and macOS users install it with their package manager.
 2. **Add a video.** Drop it onto the VideoLuwak window, or run the CLI:
    `VideoLuwak "presentation.mp4" -o ./extracts`.
 3. **Use the result.** `audio/` contains one WAV per stream, `final_keyframes/` contains the
@@ -104,7 +105,10 @@ produced, and how many keyframes survived de-duplication.
 
 ## How it works
 
-For each input video, VideoLuwak creates `<output base>/<video name>/` containing:
+For each input video, VideoLuwak creates `<output base>/<video name>/`, where `<video name>` is the
+file name with its final extension removed. If that name ends with a macOS package extension such
+as `.app` (for example `Talk.App.mp4`), an ` (output)` suffix is appended so Finder shows an
+ordinary folder instead of an application bundle. The folder contains:
 
 ```
 <video name>/
@@ -120,7 +124,7 @@ For each input video, VideoLuwak creates `<output base>/<video name>/` containin
 └── processing_result.json     # machine-readable summary of the run
 ```
 
-- **Audio** — every audio stream is probed with `ffprobe` and extracted individually to a
+- **Audio** — every audio stream is probed with FFprobe and extracted individually to a
   `pcm_s16le` (16-bit PCM) WAV. By default each WAV is **optimized for speech-to-text** — downmixed
   to **mono** and resampled to **16 kHz** — exactly what Whisper, Parakeet/NVIDIA NeMo and wav2vec
   expect, so no extra conversion step is needed before transcription. This behavior is controlled by
@@ -145,38 +149,32 @@ For each input video, VideoLuwak creates `<output base>/<video name>/` containin
 ### pHash without an image library
 
 To stay dependency-light and license-clean, the perceptual hash does not use an image library:
-ffmpeg decodes each keyframe to a raw **32×32 grayscale** frame, and a pure C# DCT-II implementation
+FFmpeg decodes each keyframe to a raw **32×32 grayscale** frame, and a pure C# DCT-II implementation
 (`PerceptualHash64`) computes the 64-bit hash (top-left 8×8 DCT coefficients, DC excluded,
 median-thresholded).
 
 ---
 
-## ffmpeg provisioning
+## FFmpeg provisioning
 
-VideoLuwak resolves `ffmpeg`/`ffprobe` in this order (first hit wins):
+FFmpeg and FFprobe are **system requirements**. VideoLuwak does not bundle them. It resolves the
+executables in this order (first hit wins):
 
 1. An explicit path (CLI `--ffmpeg` / `--ffprobe`).
 2. `VIDEOLUWAK_FFMPEG` / `VIDEOLUWAK_FFPROBE` environment variables.
 3. Next to the executable (or in a `tools/` subfolder).
-4. **Embedded binaries** (Windows release builds only).
-5. The system `PATH`, plus the standard macOS package-manager locations
+4. The system `PATH`, plus the standard macOS package-manager locations
    (`/opt/homebrew/bin`, `/usr/local/bin`, `/opt/local/bin`) on macOS.
 
-- **Windows** — the portable build embeds static `ffmpeg.exe`/`ffprobe.exe` inside the executable
-  and extracts them to a per-user cache on first run, so it runs with **no external installation**.
-- **Linux/macOS** — the app uses the **system** ffmpeg/ffprobe from `PATH` (nothing is embedded).
-  Apps opened from Finder or the Dock inherit launchd's minimal `PATH`, which omits Homebrew and
-  MacPorts, so the macOS build also searches their standard install directories automatically.
-
-To embed the Windows binaries before publishing, fetch them once:
-
-```powershell
-pwsh ./scripts/fetch-ffmpeg.ps1
-```
-
-This downloads a pinned ffmpeg 8.1.2 static Windows build into `assets/ffmpeg/win-x64/`
-(git-ignored), verifies the archive SHA-256, and the app project embeds the binaries automatically
-when present.
+- **Windows** — if FFmpeg/FFprobe are missing, VideoLuwak shows a first-run notice and attempts an
+  automated installation with `winget` (`Gyan.FFmpeg.Essentials`, with the full `Gyan.FFmpeg`
+  package as a fallback). If `winget` is unavailable or fails, the app shows manual installation
+  instructions. You can also run the setup explicitly with `VideoLuwak --setup-ffmpeg`.
+- **Linux** — install FFmpeg with your package manager, for example `sudo apt install ffmpeg`,
+  `sudo dnf install ffmpeg`, or `sudo pacman -S ffmpeg`.
+- **macOS** — install with Homebrew (`brew install ffmpeg`). Apps opened from Finder or the Dock
+  inherit launchd's minimal `PATH`, which omits Homebrew and MacPorts, so VideoLuwak also searches
+  their standard install directories automatically.
 
 ---
 
@@ -198,13 +196,13 @@ dotnet run --project src/VideoLuwak.App
 ### Publishing
 
 ```powershell
-# Windows, single-file portable exe (embeds ffmpeg — run fetch-ffmpeg.ps1 first)
+# Windows, single-file portable exe (FFmpeg is installed separately by the user)
 dotnet publish src/VideoLuwak.App -c Release -r win-x64 --self-contained true ^
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
 ```bash
-# Linux/macOS (uses the system ffmpeg)
+# Linux/macOS (uses the system FFmpeg)
 dotnet publish src/VideoLuwak.App -c Release -r linux-x64 --self-contained true \
     -p:PublishSingleFile=true
 ```
@@ -214,7 +212,7 @@ dotnet publish src/VideoLuwak.App -c Release -r linux-x64 --self-contained true 
 The application version is defined **once** in `Directory.Build.props`:
 
 ```xml
-<Version>1.0.0</Version>
+<Version>1.0.1</Version>
 ```
 
 That value drives `VideoLuwak --version`, every published assembly, the artifact names, and the
@@ -225,36 +223,35 @@ release tag. Bump it before merging a release change into `master`.
 1. Reads `<Version>` from `Directory.Build.props`.
 2. **Blocks the release if the tag `v<Version>` already exists** — no artifacts are built and no
    release is created. Re-pushing `master` without a version bump is therefore a no-op.
-3. Runs the test suite with ffmpeg installed.
+3. Runs the test suite with FFmpeg installed.
 4. Builds and packages:
 
    | Platform | Artifact |
    | --- | --- |
-   | Windows x64 | `VideoLuwak-<Version>-win-x64.zip` — portable single-file exe with ffmpeg embedded |
-   | Linux x64 | `VideoLuwak-<Version>-linux-x64.tar.gz` — self-contained binary (uses system ffmpeg) |
-   | macOS Apple Silicon | `VideoLuwak-<Version>-macos-arm64.dmg` — `.app` bundle (uses system ffmpeg) |
-   | macOS Intel | `VideoLuwak-<Version>-macos-x64.dmg` — `.app` bundle (uses system ffmpeg) |
+   | Windows x64 | `VideoLuwak-<Version>-win-x64.zip` — portable single-file exe (FFmpeg required; first-run setup available) |
+   | Linux x64 | `VideoLuwak-<Version>-linux-x64.tar.gz` — self-contained binary (FFmpeg required) |
+   | macOS Apple Silicon | `VideoLuwak-<Version>-macos-arm64.dmg` — `.app` bundle (FFmpeg required) |
+   | macOS Intel | `VideoLuwak-<Version>-macos-x64.dmg` — `.app` bundle (FFmpeg required) |
 
 5. Creates the `v<Version>` tag at the built commit and a GitHub release. The release notes list
    **every commit since the previous `v*` tag**, with links to each commit and its author. The
-   Windows job also smoke-tests the published exe with ffmpeg removed from `PATH`, proving the
-   portable build really uses its embedded binaries.
+   Windows job also exercises the first-run FFmpeg setup and processes a generated test video with
+   the published exe.
 
 To publish a new version, bump the manifest and push to `master`:
 
 ```bash
-# Edit Directory.Build.props: <Version>1.0.1</Version>
+# Edit Directory.Build.props: <Version>1.0.2</Version>
 git add Directory.Build.props
-git commit -m "Release 1.0.1"
+git commit -m "Release 1.0.2"
 git push origin master
 ```
 
-The version badge at the top of this README is static so it renders without JavaScript; update
-`version-1.0.x` in the badge URL alongside the manifest bump.
+The version badge at the top of this README is generated from the latest GitHub release.
 
 macOS builds are ad-hoc signed but not notarized; the first launch may require
-right-click → **Open**. Linux and macOS builds require `ffmpeg`/`ffprobe` on `PATH`; the Windows
-portable build embeds them.
+right-click → **Open**. All platforms require FFmpeg/FFprobe; Windows can install them on first run,
+while Linux and macOS use the system package manager.
 
 ---
 
@@ -278,8 +275,9 @@ Options:
       --highpass <hz>    High-pass filter cutoff, >= 0; 0 disables (default 0)
       --loudnorm         Apply EBU R128 loudness normalization (default off)
       --no-loudnorm      Disable loudness normalization (default)
-      --ffmpeg <path>    Explicit ffmpeg executable
-      --ffprobe <path>   Explicit ffprobe executable
+      --ffmpeg <path>    Explicit FFmpeg executable
+      --ffprobe <path>   Explicit FFprobe executable
+      --setup-ffmpeg     Install FFmpeg/FFprobe if missing, then exit
   -h, --help             Show help
       --version          Show version
       --gui              Force the graphical interface
@@ -295,9 +293,10 @@ VideoLuwak movie.mkv
 VideoLuwak movie.mkv -o /data/extracts --threshold 6
 VideoLuwak a.mp4 b.mkv --format png
 VideoLuwak movie.mkv --audio-rate 16000 --highpass 80
+VideoLuwak --setup-ffmpeg
 ```
 
-Exit codes: `0` success, `1` a file failed / ffmpeg missing, `2` usage error.
+Exit codes: `0` success, `1` a file failed / FFmpeg missing, `2` usage error.
 
 Double-clicking the application (no arguments) opens the GUI instead.
 
@@ -324,6 +323,9 @@ The desktop app is organized as a two-pane batch workspace:
   (sample rate, mono/stereo, high-pass, EBU R128 normalization). Changes are saved automatically
   and restored on the next launch.
 - **Status line** — the bottom of the queue reports add/shell errors and run status.
+- **First-run setup** — if FFmpeg/FFprobe are missing, the run bar shows a notice. On Windows,
+  *Process* starts an automated `winget` installation; on Linux/macOS the app shows the
+  package-manager instructions instead.
 
 Settings live at:
 
@@ -355,7 +357,7 @@ dotnet test
 
 Unit tests cover the pHash, the de-duplication rolling-reference algorithm, path layout, CLI
 parsing, progress parsing and settings. Integration tests generate a real multi-audio video with
-ffmpeg and run the full pipeline end-to-end (they no-op when ffmpeg is not installed).
+FFmpeg and run the full pipeline end-to-end (they no-op when FFmpeg is not installed).
 
 ---
 
@@ -363,24 +365,22 @@ ffmpeg and run the full pipeline end-to-end (they no-op when ffmpeg is not insta
 
 VideoLuwak is released under the **[MIT License](LICENSE)**.
 
-The Windows portable build embeds ffmpeg/ffprobe, which are distributed under the **GNU General
-Public License v3.0** (`--enable-gpl --enable-version3`). See
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
-[LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt) for the ffmpeg source/license details and the other
-third-party components. Linux and macOS builds use the system ffmpeg instead of embedding it.
-Published archives include `LICENSE`, `THIRD_PARTY_NOTICES.md`, and the `LICENSES/` folder.
+FFmpeg and FFprobe are **not bundled**. They are system dependencies with their own licenses; a
+build that includes GPL-covered components is GPL, while an LGPL-only build is LGPL. See the
+official [FFmpeg legal page](https://ffmpeg.org/legal.html) and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The Windows first-run setup uses `winget` to
+install FFmpeg on the user's machine; VideoLuwak does not redistribute those binaries. FFmpeg is a
+trademark of Fabrice Bellard; VideoLuwak is not endorsed by or affiliated with the FFmpeg project.
 
 ---
 
 ## Project layout
 
 ```
-src/VideoLuwak.Core   # cross-platform engine: ffmpeg, hashing, pipeline, settings, CLI
+src/VideoLuwak.Core   # cross-platform engine: FFmpeg, hashing, pipeline, settings, CLI
 src/VideoLuwak.App    # Avalonia app: dual-mode entry point (CLI + GUI)
 tests/                # unit + integration tests
-scripts/              # ffmpeg asset fetcher + macOS DMG packager
-assets/ffmpeg/win-x64 # (fetched, git-ignored) embedded Windows binaries
+scripts/              # macOS DMG packager
 .github/workflows     # release automation (master -> test -> build -> GitHub release)
 docs/                 # README screenshots
-LICENSES/             # third-party license texts
 ```

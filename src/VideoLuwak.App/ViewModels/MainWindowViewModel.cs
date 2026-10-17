@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using VideoLuwak.Core.Abstractions;
 using VideoLuwak.Core.Composition;
 using VideoLuwak.Core.Config;
+using VideoLuwak.Core.Ffmpeg;
 using VideoLuwak.Core.Models;
 using VideoLuwak.Core.Pipeline;
 
@@ -25,6 +26,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private readonly SettingsStore _settingsStore;
     private readonly IVideoProcessor _processor;
+    private readonly IFfmpegSetupService _ffmpegSetup;
     private readonly AppSettings _settings;
 
     private CancellationTokenSource? _cts;
@@ -41,11 +43,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     /// <param name="settingsStore">Settings store to load/save user preferences.</param>
-    /// <param name="processor">Optional processor override (defaults to the ffmpeg pipeline).</param>
-    public MainWindowViewModel(SettingsStore? settingsStore, IVideoProcessor? processor)
+    /// <param name="processor">Optional processor override (defaults to the FFmpeg pipeline).</param>
+    /// <param name="ffmpegSetup">Optional FFmpeg setup service (defaults to the system installer).</param>
+    public MainWindowViewModel(
+        SettingsStore? settingsStore,
+        IVideoProcessor? processor,
+        IFfmpegSetupService? ffmpegSetup = null)
     {
         _settingsStore = settingsStore ?? new SettingsStore();
         _processor = processor ?? ExtractorFactory.CreateVideoProcessor();
+        _ffmpegSetup = ffmpegSetup ?? new FfmpegSetupService();
         _settings = _settingsStore.Load();
 
         _suppressSave = true;
@@ -73,7 +80,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         };
 
         OnQueueChanged();
+
+        if (!_ffmpegSetup.IsAvailable)
+        {
+            StatusLine = MissingFfmpegNotice;
+        }
     }
+
+    private static string MissingFfmpegNotice => OperatingSystem.IsWindows()
+        ? "FFmpeg and FFprobe are required. First-run setup will install FFmpeg automatically."
+        : "FFmpeg and FFprobe are required. Install them with your system package manager.";
 
     /// <summary>Files awaiting or undergoing processing.</summary>
     public ObservableCollection<VideoItemViewModel> Files { get; } = [];
@@ -508,6 +524,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 ? $"{QueueCountText} · {QueueSizeText} ready to process."
                 : "Drop videos or add files to begin.";
             CurrentStageMessage = "Idle";
+
+            if (!_ffmpegSetup.IsAvailable)
+            {
+                RunSubText = MissingFfmpegNotice;
+            }
         }
 
         ClearFilesCommand.NotifyCanExecuteChanged();
@@ -583,6 +604,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         try
         {
+            if (!_ffmpegSetup.IsAvailable)
+            {
+                await EnsureFfmpegAsync(token).ConfigureAwait(true);
+                RunStatusText = snapshot.Count == 1 ? "Processing 1 of 1" : $"Processing 1 of {snapshot.Count}";
+                RunSubText = "Preparing the first file…";
+            }
+
             for (var i = 0; i < snapshot.Count; i++)
             {
                 token.ThrowIfCancellationRequested();
@@ -734,6 +762,43 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ClearResultsCommand.NotifyCanExecuteChanged();
             ClearFilesCommand.NotifyCanExecuteChanged();
         }
+    }
+
+    private async Task EnsureFfmpegAsync(CancellationToken cancellationToken)
+    {
+        var autoInstall = OperatingSystem.IsWindows();
+
+        RunStatusText = autoInstall ? "First-run setup" : "FFmpeg required";
+        RunSubText = autoInstall
+            ? "FFmpeg and FFprobe are required. Installing FFmpeg..."
+            : "FFmpeg and FFprobe are required.";
+        StatusLine = autoInstall
+            ? "FFmpeg and FFprobe were not found. Installing FFmpeg automatically..."
+            : "FFmpeg and FFprobe are required. Install them with your package manager.";
+        CurrentStageMessage = autoInstall ? "Installing FFmpeg" : "FFmpeg required";
+
+        var setupProgress = new Progress<string>(line =>
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                return;
+            }
+
+            StatusLine = line;
+            RunSubText = line;
+            CurrentStageMessage = autoInstall ? "Installing FFmpeg" : "FFmpeg required";
+        });
+
+        var result = await _ffmpegSetup
+            .EnsureAvailableAsync(setupProgress, cancellationToken)
+            .ConfigureAwait(true);
+
+        if (!result.IsReady)
+        {
+            throw new InvalidOperationException(result.Message ?? "FFmpeg setup failed.");
+        }
+
+        StatusLine = "FFmpeg and FFprobe are ready. Starting processing...";
     }
 
     private bool CanCancel() => IsProcessing;

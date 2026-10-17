@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using VideoLuwak.Core.Abstractions;
 using VideoLuwak.Core.Config;
+using VideoLuwak.Core.Ffmpeg;
 using VideoLuwak.Core.Models;
 
 namespace VideoLuwak.Core.Cli;
@@ -16,14 +17,16 @@ public sealed class CliRunner
 
     private readonly IVideoProcessor _processor;
     private readonly SettingsStore _settings;
+    private readonly IFfmpegSetupService _setup;
 
-    public CliRunner(IVideoProcessor processor, SettingsStore settings)
+    public CliRunner(IVideoProcessor processor, SettingsStore settings, IFfmpegSetupService? setup = null)
     {
         ArgumentNullException.ThrowIfNull(processor);
         ArgumentNullException.ThrowIfNull(settings);
 
         _processor = processor;
         _settings = settings;
+        _setup = setup ?? new FfmpegSetupService();
     }
 
     /// <summary>True when the arguments represent a CLI invocation (non-empty and no --gui).</summary>
@@ -81,10 +84,23 @@ public sealed class CliRunner
             return 0;
         }
 
+        if (cli.SetupFfmpeg)
+        {
+            return await RunSetupAsync(output, error, cancellationToken).ConfigureAwait(false) ? 0 : 1;
+        }
+
         if (cli.InputPaths.Count == 0)
         {
             await output.WriteLineAsync(CliParser.GetUsage()).ConfigureAwait(false);
             return 2;
+        }
+
+        if (!_setup.IsAvailable)
+        {
+            if (!await RunSetupAsync(output, error, cancellationToken).ConfigureAwait(false))
+            {
+                return 1;
+            }
         }
 
         var options = BuildOptions(cli);
@@ -116,6 +132,32 @@ public sealed class CliRunner
         await output.WriteLineAsync($"Done: {succeeded} succeeded, {failed} failed.").ConfigureAwait(false);
 
         return failed == 0 ? 0 : 1;
+    }
+
+    private async Task<bool> RunSetupAsync(TextWriter output, TextWriter error, CancellationToken cancellationToken)
+    {
+        var writeGate = new object();
+        var progress = new InlineProgress<string>(line =>
+        {
+            lock (writeGate)
+            {
+                output.WriteLine(line);
+            }
+        });
+
+        var result = await _setup.EnsureAvailableAsync(progress, cancellationToken).ConfigureAwait(false);
+        if (result.IsReady)
+        {
+            await output.WriteLineAsync("FFmpeg and FFprobe are ready.").ConfigureAwait(false);
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Message))
+        {
+            await error.WriteLineAsync(result.Message).ConfigureAwait(false);
+        }
+
+        return false;
     }
 
     private async Task<ProcessingResult> RunSingleAsync(
@@ -167,7 +209,7 @@ public sealed class CliRunner
                 output.WriteLine();
             }
 
-            await error.WriteLineAsync($"ffmpeg/ffprobe could not be located: {ex.Message}").ConfigureAwait(false);
+            await error.WriteLineAsync($"FFmpeg/FFprobe could not be located: {ex.Message}").ConfigureAwait(false);
             return new ProcessingResult
             {
                 VideoPath = input,

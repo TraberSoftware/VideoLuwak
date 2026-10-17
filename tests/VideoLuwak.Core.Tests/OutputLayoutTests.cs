@@ -40,6 +40,21 @@ public sealed class OutputLayoutTests
         Path.GetFileName(actual).Should().Be("My.Video.final");
     }
 
+    [Theory]
+    [InlineData("Energy-Oil-and-SnapYT.App.mp4", "Energy-Oil-and-SnapYT.App (output)")]
+    [InlineData("Talk.APP.mp4", "Talk.APP (output)")]
+    [InlineData("Slides.xcodeproj.mkv", "Slides.xcodeproj (output)")]
+    [InlineData("My.Video.final.mkv", "My.Video.final")]
+    [InlineData("App.video.mp4", "App.video")]
+    public void GetOutputDirectory_EscapesMacOsPackageExtensions(string fileName, string expectedName)
+    {
+        using var temp = new TempDirectory();
+
+        var actual = OutputLayout.GetOutputDirectory(Path.Combine(temp.Path, fileName), null);
+
+        Path.GetFileName(actual).Should().Be(expectedName);
+    }
+
     [Fact]
     public void SanitizeName_ReplacesInvalidCharacters()
     {
