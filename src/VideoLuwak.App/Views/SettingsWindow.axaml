@@ -1,0 +1,233 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:VideoLuwak.App.ViewModels"
+        x:Class="VideoLuwak.App.Views.SettingsWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Settings — VideoLuwak"
+        Width="760"
+        Height="820"
+        MinWidth="640"
+        MinHeight="560"
+        Background="{DynamicResource AppBackgroundBrush}"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- ============================== HEADER ============================== -->
+    <Border Grid.Row="0"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="20,14">
+      <Grid ColumnDefinitions="Auto,12,*,Auto" VerticalAlignment="Center">
+        <Button Classes="icon subtle"
+                Click="OnCloseClick"
+                ToolTip.Tip="Back to VideoLuwak">
+          <Path Data="M15,5 L8,12 L15,19"
+                Stroke="{DynamicResource TextSecondaryBrush}"
+                StrokeThickness="1.6"
+                StrokeLineCap="Round"
+                StrokeJoin="Round"
+                Width="16" Height="16"
+                Stretch="Uniform" />
+        </Button>
+
+        <StackPanel Grid.Column="2" Spacing="1">
+          <TextBlock Text="Settings" Classes="pageTitle" FontSize="20" />
+          <TextBlock Text="Extraction preferences are saved automatically." Classes="muted" />
+        </StackPanel>
+
+        <TextBlock Grid.Column="3"
+                   Text="VideoLuwak"
+                   Classes="appSubtitle"
+                   VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
+    <!-- ============================== CONTENT ============================= -->
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="20,16"
+                  Spacing="14"
+                  MaxWidth="720"
+                  HorizontalAlignment="Stretch">
+
+        <!-- Output -->
+        <Border Classes="panel">
+          <StackPanel Spacing="10">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Output" Classes="section" />
+              <TextBlock Text="Where each video's extracted files are written." Classes="muted" />
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,8,Auto">
+              <TextBox Text="{Binding OutputDirectory}"
+                       Watermark="Next to each video"
+                       MinHeight="36" />
+              <Button Grid.Column="2"
+                      Classes="ghost"
+                      Content="Browse…"
+                      Click="OnBrowseOutputClick" />
+            </Grid>
+
+            <TextBlock Text="Leave empty to save the output next to each source video."
+                       Classes="helper" />
+          </StackPanel>
+        </Border>
+
+        <!-- Keyframes -->
+        <Border Classes="panel">
+          <StackPanel Spacing="14">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Keyframes" Classes="section" />
+              <TextBlock Text="Image format and perceptual de-duplication." Classes="muted" />
+            </StackPanel>
+
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="190,*">
+                <TextBlock Text="Image format" Classes="fieldLabel" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding KeyframeFormats}"
+                          SelectedItem="{Binding KeyframeFormat}"
+                          MinWidth="140"
+                          HorizontalAlignment="Left" />
+              </Grid>
+
+              <Grid ColumnDefinitions="190,*">
+                <TextBlock Text="JPEG quality" Classes="fieldLabel" VerticalAlignment="Center" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                  <Slider Minimum="1"
+                          Maximum="31"
+                          TickFrequency="1"
+                          IsSnapToTickEnabled="True"
+                          Value="{Binding JpegQuality}"
+                          IsEnabled="{Binding IsJpegFormat}"
+                          VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="badge accent" Margin="10,0,0,0" IsEnabled="{Binding IsJpegFormat}">
+                    <TextBlock Classes="badgeText accent" Text="{Binding JpegQuality}" />
+                  </Border>
+                </Grid>
+              </Grid>
+              <TextBlock Text="Lower values keep more detail; higher values produce smaller JPEGs."
+                         Classes="helper"
+                         Margin="190,0,0,0" />
+
+              <Grid ColumnDefinitions="190,*">
+                <TextBlock Text="Similarity threshold" Classes="fieldLabel" VerticalAlignment="Center" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                  <Slider Minimum="0"
+                          Maximum="24"
+                          TickFrequency="1"
+                          IsSnapToTickEnabled="True"
+                          Value="{Binding PhashThreshold}"
+                          VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="badge accent" Margin="10,0,0,0">
+                    <TextBlock Classes="badgeText accent" Text="{Binding PhashThreshold}" />
+                  </Border>
+                </Grid>
+              </Grid>
+              <TextBlock Text="Higher thresholds remove more near-identical frames. 8 is a balanced default."
+                         Classes="helper"
+                         Margin="190,0,0,0" />
+
+              <CheckBox IsChecked="{Binding DeduplicateKeyframes}">
+                <StackPanel Spacing="1">
+                  <TextBlock Text="Deduplicate near-identical keyframes" Classes="body" />
+                  <TextBlock Text="Keeps the first frame in a run of perceptually similar frames."
+                             Classes="helper" />
+                </StackPanel>
+              </CheckBox>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- Audio -->
+        <Border Classes="panel">
+          <StackPanel Spacing="14">
+            <StackPanel Spacing="2">
+              <TextBlock Text="Audio for speech-to-text" Classes="section" />
+              <TextBlock Text="Defaults produce mono 16 kHz PCM — the expected input for Whisper, Parakeet and wav2vec."
+                         Classes="muted" />
+            </StackPanel>
+
+            <CheckBox Content="Optimize extracted audio for speech-to-text"
+                      IsChecked="{Binding SttOptimizeAudio}" />
+
+            <StackPanel Spacing="12" IsEnabled="{Binding SttOptimizeAudio}">
+              <Grid ColumnDefinitions="190,*">
+                <TextBlock Text="Sample rate" Classes="fieldLabel" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                  <ComboBox ItemsSource="{Binding SampleRates}"
+                            SelectedItem="{Binding AudioSampleRate}"
+                            MinWidth="140"
+                            HorizontalAlignment="Left" />
+                  <TextBlock Text="Hz" Classes="muted" VerticalAlignment="Center" />
+                </StackPanel>
+              </Grid>
+
+              <Grid ColumnDefinitions="190,*">
+                <TextBlock Text="Channels" Classes="fieldLabel" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding AudioChannelChoices}"
+                          SelectedItem="{Binding SelectedAudioChannel}"
+                          MinWidth="140"
+                          HorizontalAlignment="Left">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AudioChannelChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </Grid>
+
+              <Grid ColumnDefinitions="190,*">
+                <TextBlock Text="High-pass filter" Classes="fieldLabel" VerticalAlignment="Center" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                  <Slider Minimum="0"
+                          Maximum="300"
+                          TickFrequency="10"
+                          IsSnapToTickEnabled="True"
+                          Value="{Binding AudioHighPassHz}"
+                          VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="badge accent" Margin="10,0,0,0">
+                    <TextBlock Classes="badgeText accent"
+                               Text="{Binding AudioHighPassHz, StringFormat='{}{0} Hz'}" />
+                  </Border>
+                </Grid>
+              </Grid>
+              <TextBlock Text="0 Hz disables the filter; 60–80 Hz trims low-frequency rumble."
+                         Classes="helper"
+                         Margin="190,0,0,0" />
+
+              <CheckBox Content="Normalize loudness (EBU R128)"
+                        IsChecked="{Binding AudioNormalizeLoudness}" />
+            </StackPanel>
+
+            <TextBlock Text="With optimization off, each stream keeps its source channel layout and sample rate."
+                       Classes="helper" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- ============================== FOOTER ============================== -->
+    <Border Grid.Row="2"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,1,0,0"
+            Padding="20,12">
+      <Grid ColumnDefinitions="*,Auto">
+        <Button Classes="link"
+                Content="Restore defaults"
+                Command="{Binding ResetSettingsCommand}"
+                VerticalAlignment="Center" />
+
+        <Button Grid.Column="1"
+                Classes="primary"
+                Content="Done"
+                Click="OnCloseClick"
+                MinWidth="84" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

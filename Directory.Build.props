@@ -1,0 +1,29 @@
+<Project>
+
+  <!--
+    Application version manifest.
+
+    <Version> is the single source of truth for the application version. The release
+    workflow (.github/workflows/release.yml) reads it, publishes every artifact with it,
+    and creates the matching "v<Version>" tag/release. Bump it before merging a release
+    change into master; if the tag already exists the release is intentionally skipped.
+  -->
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <!-- Keep the version switch and the assembly informational version identical to the
+         manifest (do not append "+<commit>" in CI builds). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Authors>VideoLuwak</Authors>
+    <Product>VideoLuwak</Product>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+</Project>

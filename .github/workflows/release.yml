@@ -1,0 +1,379 @@
+name: Release
+
+# Release on every push to master, but only when the version declared in
+# Directory.Build.props has not been released yet. The version is the single
+# source of truth; bump it (for example 1.0.0 -> 1.0.1) in the same PR that
+# should produce the next release.
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  actions: read
+
+# Serialise releases so two quick pushes cannot race to create the same tag.
+concurrency:
+  group: videoluwak-release-master
+  cancel-in-progress: false
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  APP_PROJECT: src/VideoLuwak.App/VideoLuwak.App.csproj
+
+jobs:
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      tag_exists: ${{ steps.tag-check.outputs.exists }}
+    steps:
+      - name: Check out full history and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Read the version manifest
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(sed -nE 's/^[[:space:]]*<Version>([^<]+)<\/Version>.*$/\1/p' Directory.Build.props | head -n 1)"
+
+          if [[ -z "${VERSION}" ]]; then
+            echo "::error file=Directory.Build.props::Could not find <Version>...</Version> in Directory.Build.props."
+            exit 1
+          fi
+
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error file=Directory.Build.props::Version '${VERSION}' is not a valid SemVer 2 version (MAJOR.MINOR.PATCH[-prerelease])."
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${VERSION}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## VideoLuwak ${VERSION}"
+            echo
+            echo "Version source: \`Directory.Build.props\`."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Block when the target tag already exists
+        id: tag-check
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1
+          STATUS=$?
+          set -e
+
+          if [[ "${STATUS}" -eq 0 ]]; then
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+            {
+              echo
+              echo "### Release blocked"
+              echo
+              echo "Tag \`${TAG}\` already exists. No artifacts are built and no release is created."
+              echo "Bump \`<Version>\` in \`Directory.Build.props\` to release again."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          elif [[ "${STATUS}" -eq 2 ]]; then
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+            {
+              echo
+              echo "Tag \`${TAG}\` does not exist yet; the release will be built."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::error::Could not query remote tags (git ls-remote exited ${STATUS})."
+            exit 1
+          fi
+
+      - name: Generate release notes
+        if: steps.tag-check.outputs.exists == 'false'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || true)"
+          NOTES="${RUNNER_TEMP}/release-notes.md"
+
+          if [[ -n "${PREVIOUS_TAG}" ]]; then
+            RANGE="${PREVIOUS_TAG}..HEAD"
+            COMPARE_URL="https://github.com/${REPOSITORY}/compare/${PREVIOUS_TAG}...${TAG}"
+            RANGE_TITLE="Commits since \`${PREVIOUS_TAG}\`"
+          else
+            RANGE="HEAD"
+            COMPARE_URL="https://github.com/${REPOSITORY}/commits/${TAG}"
+            RANGE_TITLE="Commits included in the initial release"
+          fi
+
+          {
+            echo "# VideoLuwak ${VERSION}"
+            echo
+            echo "Portable .NET desktop/CLI tool that extracts audio streams and perceptually"
+            echo "de-duplicated keyframes from videos, aimed at turning online presentations into"
+            echo "clean audio plus the distinct slides for use with an LLM."
+            echo
+            echo "## Downloads"
+            echo
+            echo "| Platform | File |"
+            echo "| --- | --- |"
+            echo "| Windows x64 (portable, ffmpeg embedded) | \`VideoLuwak-${VERSION}-win-x64.zip\` |"
+            echo "| Linux x64 (requires system ffmpeg) | \`VideoLuwak-${VERSION}-linux-x64.tar.gz\` |"
+            echo "| macOS Apple Silicon (requires system ffmpeg) | \`VideoLuwak-${VERSION}-macos-arm64.dmg\` |"
+            echo "| macOS Intel (requires system ffmpeg) | \`VideoLuwak-${VERSION}-macos-x64.dmg\` |"
+            echo
+            echo "## ${RANGE_TITLE}"
+            echo
+            echo "Full changelog: ${COMPARE_URL}"
+            echo
+            # shellcheck disable=SC2016 # Git pretty-format placeholders, not shell expansions.
+            git log "${RANGE}" --date=short --pretty=format:'- [`%h`](https://github.com/'"${REPOSITORY}"'/commit/%H) %s — %an, %ad'
+            echo
+          } > "${NOTES}"
+
+          {
+            echo
+            echo "### Commit range"
+            echo
+            echo "${RANGE_TITLE} (\`${RANGE}\`)."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload release notes
+        if: steps.tag-check.outputs.exists == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release-notes.md
+          if-no-files-found: error
+
+  test:
+    name: Test
+    needs: prepare
+    if: needs.prepare.outputs.tag_exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install ffmpeg for integration tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg
+
+      - name: Run tests
+        run: dotnet test VideoLuwak.slnx -c Release --nologo
+
+  build:
+    name: Build ${{ matrix.rid }}
+    needs: [prepare, test]
+    if: needs.prepare.outputs.tag_exists == 'false'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            kind: windows
+            single_file: true
+          - os: ubuntu-latest
+            rid: linux-x64
+            kind: linux
+            single_file: true
+          - os: macos-latest
+            rid: osx-arm64
+            kind: macos
+            single_file: false
+          - os: macos-latest
+            rid: osx-x64
+            kind: macos
+            single_file: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Fetch ffmpeg for the embedded Windows build
+        if: matrix.kind == 'windows'
+        shell: pwsh
+        run: ./scripts/fetch-ffmpeg.ps1
+
+      - name: Publish self-contained single-file build
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          dotnet publish "${APP_PROJECT}" \
+            -c Release \
+            -r "${{ matrix.rid }}" \
+            --self-contained true \
+            -p:Version="${VERSION}" \
+            -p:PublishSingleFile=${{ matrix.single_file }} \
+            -p:IncludeNativeLibrariesForSelfExtract=${{ matrix.single_file }} \
+            -p:EnableCompressionInSingleFile=${{ matrix.single_file }} \
+            -p:DebugType=None \
+            -p:DebugSymbols=false \
+            -o "${RUNNER_TEMP}/publish"
+
+      - name: Package Windows zip
+        if: matrix.kind == 'windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP "stage/VideoLuwak"
+          $artifacts = Join-Path $env:RUNNER_TEMP "artifacts"
+          New-Item -ItemType Directory -Force -Path $stage, $artifacts | Out-Null
+          Copy-Item -Path (Join-Path $env:RUNNER_TEMP "publish/*") -Destination $stage -Recurse -Force
+          Copy-Item -Path (Join-Path $env:GITHUB_WORKSPACE "LICENSE") -Destination $stage -Force
+          Copy-Item -Path (Join-Path $env:GITHUB_WORKSPACE "THIRD_PARTY_NOTICES.md") -Destination $stage -Force
+          Copy-Item -Path (Join-Path $env:GITHUB_WORKSPACE "README.md") -Destination $stage -Force
+          Copy-Item -Path (Join-Path $env:GITHUB_WORKSPACE "LICENSES") -Destination $stage -Recurse -Force
+          Compress-Archive -Path $stage -DestinationPath (Join-Path $artifacts "VideoLuwak-$env:VERSION-win-x64.zip") -Force
+
+      - name: Smoke test the portable Windows build without ffmpeg on PATH
+        if: matrix.kind == 'windows'
+        shell: pwsh
+        run: |
+          $ffmpeg = Join-Path $env:GITHUB_WORKSPACE "assets/ffmpeg/win-x64/ffmpeg.exe"
+          $input = Join-Path $env:RUNNER_TEMP "smoke.mp4"
+          $output = Join-Path $env:RUNNER_TEMP "smoke-out"
+
+          & $ffmpeg -hide_banner -loglevel error -y `
+            -f lavfi -i "testsrc=size=320x240:rate=30:duration=2" `
+            -f lavfi -i "sine=frequency=440:duration=2" `
+            -map 0:v -map 1:a -c:v libx264 -g 30 -pix_fmt yuv420p -c:a aac $input
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not create the smoke-test video."
+          }
+
+          if (Test-Path $output) { Remove-Item -Recurse -Force $output }
+
+          # Strip ffmpeg from PATH: the published exe must use its embedded binaries.
+          $originalPath = $env:PATH
+          try {
+            $env:PATH = "$env:SystemRoot\System32"
+            $process = Start-Process `
+              -FilePath (Join-Path $env:RUNNER_TEMP "publish/VideoLuwak.exe") `
+              -ArgumentList @($input, "-o", $output) `
+              -Wait `
+              -PassThru
+            if ($process.ExitCode -ne 0) {
+              throw "Published VideoLuwak.exe failed with exit code $($process.ExitCode)."
+            }
+          }
+          finally {
+            $env:PATH = $originalPath
+          }
+
+          $audio = Get-ChildItem -Path (Join-Path $output "smoke/audio") -Filter "*.wav" -ErrorAction SilentlyContinue
+          $slides = Get-ChildItem -Path (Join-Path $output "smoke/final_keyframes") -Filter "*.jpg" -ErrorAction SilentlyContinue
+          if (-not $audio) { throw "Smoke test produced no audio." }
+          if (-not $slides) { throw "Smoke test produced no final keyframes." }
+
+      - name: Package Linux tarball
+        if: matrix.kind == 'linux'
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "${RUNNER_TEMP}/stage/VideoLuwak" "${RUNNER_TEMP}/artifacts"
+          cp -a "${RUNNER_TEMP}/publish/." "${RUNNER_TEMP}/stage/VideoLuwak/"
+          cp LICENSE THIRD_PARTY_NOTICES.md README.md "${RUNNER_TEMP}/stage/VideoLuwak/"
+          cp -R LICENSES "${RUNNER_TEMP}/stage/VideoLuwak/"
+          tar -C "${RUNNER_TEMP}/stage" -czf \
+            "${RUNNER_TEMP}/artifacts/VideoLuwak-${VERSION}-linux-x64.tar.gz" \
+            VideoLuwak
+
+      - name: Package macOS DMG
+        if: matrix.kind == 'macos'
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          bash scripts/package-macos.sh \
+            "${VERSION}" \
+            "${{ matrix.rid }}" \
+            "${RUNNER_TEMP}/publish" \
+            "${RUNNER_TEMP}/artifacts"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.rid }}
+          path: ${{ runner.temp }}/artifacts/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: [prepare, build]
+    if: needs.prepare.outputs.tag_exists == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the released commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: ${{ runner.temp }}/release-assets
+          merge-multiple: true
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release-notes
+
+      - name: Create tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          echo "Release assets:"
+          ls -lh "${RUNNER_TEMP}/release-assets"
+
+          # Creating the release with an explicit target creates the tag at the
+          # exact commit that produced these artifacts. A concurrent/racing tag
+          # makes this command fail, which is the desired "blocked" behaviour.
+          gh release create "${TAG}" "${RUNNER_TEMP}"/release-assets/* \
+            --repo "${REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "VideoLuwak ${VERSION}" \
+            --notes-file "${RUNNER_TEMP}/release-notes/release-notes.md"

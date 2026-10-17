@@ -1,0 +1,735 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:VideoLuwak.App.ViewModels"
+        x:Class="VideoLuwak.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="VideoLuwak"
+        Width="1280"
+        Height="820"
+        MinWidth="1024"
+        MinHeight="680"
+        Background="{DynamicResource AppBackgroundBrush}"
+        WindowStartupLocation="CenterScreen">
+
+  <Window.Resources>
+    <DataTemplate x:Key="StageStepTemplate" x:DataType="vm:StageStepViewModel">
+      <Grid RowDefinitions="Auto,Auto,Auto" HorizontalAlignment="Stretch">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding Label}"
+                     Classes="stageLabel"
+                     Classes.active="{Binding IsActive}"
+                     Classes.complete="{Binding IsComplete}"
+                     Classes.failed="{Binding IsFailed}" />
+          <TextBlock Grid.Column="1"
+                     Text="{Binding Glyph}"
+                     Classes="stateGlyph"
+                     Classes.success="{Binding IsComplete}"
+                     Classes.accent="{Binding IsActive}"
+                     Classes.danger="{Binding IsFailed}" />
+        </Grid>
+        <ProgressBar Grid.Row="1"
+                     Value="{Binding Percent}"
+                     Maximum="100"
+                     Classes="stage"
+                     Classes.failed="{Binding IsFailed}"
+                     Margin="0,4,0,3" />
+        <TextBlock Grid.Row="2"
+                   Text="{Binding DetailText}"
+                   Classes="caption"
+                   FontSize="9.5" />
+      </Grid>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Grid RowDefinitions="Auto,*">
+
+    <!-- ============================== HEADER ============================== -->
+    <Border Grid.Row="0"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="20,12">
+      <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+          <Border Width="40" Height="40"
+                  CornerRadius="11"
+                  Background="#0E1418"
+                  BorderBrush="#24323A"
+                  BorderThickness="1"
+                  VerticalAlignment="Center">
+            <Image Source="avares://VideoLuwak/Assets/logo/logo-mark-transparent-128.png"
+                   Width="32" Height="32"
+                   Stretch="Uniform"
+                   RenderOptions.BitmapInterpolationMode="HighQuality"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Spacing="1" VerticalAlignment="Center">
+            <TextBlock Text="VideoLuwak" Classes="wordmark" />
+            <TextBlock Text="ffmpeg keyframe &amp; audio extractor" Classes="appSubtitle" />
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Classes="pathChip"
+                  Click="OnBrowseOutputClick"
+                  ToolTip.Tip="Change the output folder"
+                  MaxWidth="380">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Path Data="M10,4 L12.5,7 L20,7 C21.1,7 22,7.9 22,9 L22,17 C22,18.1 21.1,19 20,19 L4,19 C2.9,19 2,18.1 2,17 L2,6 C2,4.9 2.9,4 4,4 Z"
+                    Fill="{DynamicResource TextMutedBrush}"
+                    Width="14" Height="14"
+                    Stretch="Uniform"
+                    VerticalAlignment="Center" />
+              <TextBlock Text="{Binding OutputDirectoryDisplay}"
+                         FontSize="12"
+                         MaxWidth="290"
+                         TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" />
+              <Path Data="M9,6 L14,11 L9,16"
+                    Stroke="{DynamicResource TextMutedBrush}"
+                    StrokeThickness="1.5"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    Width="10" Height="10"
+                    Stretch="Uniform"
+                    VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+
+          <Button Classes="icon subtle"
+                  Click="OnSettingsClick"
+                  ToolTip.Tip="Settings">
+            <Path Data="M19.14,12.94a7.07,7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.03,7.03 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36,2.54c-.58.24-1.12.55-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.71,8.84a.5.5 0 0 0 .12.64l2.03,1.58a7.07,7.07 0 0 0 0,1.88l-2.03,1.58a.5.5 0 0 0-.12.64l1.92,3.32c.14.24.42.34.68.22l2.39-.96c.5.39 1.04.7 1.62.94l.36,2.54c.04.24.25.42.5.42h3.84c.25,0 .46-.18.5-.42l.36-2.54c.58-.24 1.12-.55 1.62-.94l2.39.96c.26.12.54.02.68-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z M12,15.5A3.5,3.5 0 1 1 12,8.5a3.5,3.5 0 0 1 0,7z"
+                  Fill="{DynamicResource TextSecondaryBrush}"
+                  Width="17" Height="17"
+                  Stretch="Uniform" />
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- =============================== BODY ============================== -->
+    <Grid Grid.Row="1" Margin="20,16,20,20" ColumnDefinitions="360,16,*">
+
+      <!-- ============================== LEFT ============================== -->
+      <Grid Grid.Column="0" RowDefinitions="Auto,12,*,12,Auto">
+
+        <!-- Queue header -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="Queue" Classes="section" />
+            <Border Classes="statusPill">
+              <TextBlock Classes="pillText" Text="{Binding QueueCountText}" />
+            </Border>
+            <TextBlock Text="{Binding QueueSizeText}" Classes="muted" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <Button Classes="subtle"
+                    Content="Clear"
+                    Command="{Binding ClearFilesCommand}"
+                    IsVisible="{Binding HasFiles}"
+                    ToolTip.Tip="Clear the queue" />
+            <Button Classes="primary"
+                    Content="+ Add files"
+                    Click="OnAddFilesClick"
+                    IsVisible="{Binding HasFiles}"
+                    IsEnabled="{Binding !IsProcessing}"
+                    Padding="12,6"
+                    MinHeight="32" />
+          </StackPanel>
+        </Grid>
+
+        <!-- Queue body -->
+        <Grid Grid.Row="2">
+
+          <ScrollViewer IsVisible="{Binding HasFiles}" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Files}">
+              <ItemsControl.Styles>
+                <Style Selector="ItemsControl > ContentPresenter">
+                  <Setter Property="HorizontalAlignment" Value="Stretch" />
+                </Style>
+              </ItemsControl.Styles>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:VideoItemViewModel">
+                  <Border Classes="queueRow" Margin="0,0,0,6">
+                    <Grid ColumnDefinitions="Auto,10,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+
+                      <Border Grid.RowSpan="4"
+                              Width="44" Height="44"
+                              CornerRadius="8"
+                              Background="{DynamicResource SurfaceSunkenBrush}"
+                              VerticalAlignment="Top">
+                        <TextBlock Text="{Binding ExtensionLabel}"
+                                   FontSize="9.5"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource AccentBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                      </Border>
+
+                      <TextBlock Grid.Column="2"
+                                 Text="{Binding FileName}"
+                                 ToolTip.Tip="{Binding FilePath}"
+                                 Classes="body"
+                                 FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center" />
+
+                      <TextBlock Grid.Row="1"
+                                 Grid.Column="2"
+                                 Text="{Binding MetaText}"
+                                 Classes="muted"
+                                 FontSize="11"
+                                 Margin="0,2,0,0" />
+
+                      <StackPanel Grid.RowSpan="2"
+                                  Grid.Column="3"
+                                  Orientation="Horizontal"
+                                  Spacing="4"
+                                  VerticalAlignment="Top">
+                        <Border Classes="statusPill"
+                                Classes.success="{Binding IsSucceeded}"
+                                Classes.danger="{Binding IsFailed}"
+                                Classes.accent="{Binding IsProcessing}">
+                          <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="{Binding StatusGlyph}"
+                                       Classes="stateGlyph"
+                                       Classes.success="{Binding IsSucceeded}"
+                                       Classes.danger="{Binding IsFailed}"
+                                       Classes.accent="{Binding IsProcessing}" />
+                            <TextBlock Text="{Binding StatusPillText}"
+                                       Classes="pillText"
+                                       Classes.success="{Binding IsSucceeded}"
+                                       Classes.danger="{Binding IsFailed}"
+                                       Classes.accent="{Binding IsProcessing}" />
+                          </StackPanel>
+                        </Border>
+                        <Button Classes="icon subtle small"
+                                Content="✕"
+                                Command="{Binding RemoveCommand}"
+                                IsVisible="{Binding CanRemove}"
+                                ToolTip.Tip="Remove from queue" />
+                      </StackPanel>
+
+                      <ProgressBar Grid.Row="2"
+                                   Grid.Column="2"
+                                   Grid.ColumnSpan="2"
+                                   Value="{Binding Progress}"
+                                   Maximum="100"
+                                   Classes="slim"
+                                   Margin="0,8,0,0"
+                                   IsVisible="{Binding IsProcessing}" />
+
+                      <TextBlock Grid.Row="3"
+                                 Grid.Column="2"
+                                 Grid.ColumnSpan="2"
+                                 Text="{Binding StageMessage}"
+                                 Classes="caption"
+                                 Margin="0,6,0,0"
+                                 IsVisible="{Binding IsProcessing}" />
+
+                      <TextBlock Grid.Row="3"
+                                 Grid.Column="2"
+                                 Grid.ColumnSpan="2"
+                                 Text="{Binding ErrorMessage}"
+                                 Classes="caption"
+                                 Foreground="{DynamicResource DangerBrush}"
+                                 TextWrapping="NoWrap"
+                                 TextTrimming="CharacterEllipsis"
+                                 Margin="0,6,0,0"
+                                 IsVisible="{Binding IsFailed}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <!-- Empty queue -->
+          <Grid IsVisible="{Binding !HasFiles}">
+            <Rectangle Classes="dropzone" Classes.drag="{Binding IsDragOver}" />
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" Margin="20">
+              <Border Width="48" Height="48"
+                      CornerRadius="13"
+                      Background="{DynamicResource AccentSoftBrush}"
+                      HorizontalAlignment="Center">
+                <Viewbox Width="23" Height="23">
+                  <Path Data="M12,3 L12,14 M7,9 L12,14 L17,9 M4,19 L20,19"
+                        Stroke="{DynamicResource AccentBrush}"
+                        StrokeThickness="2"
+                        StrokeLineCap="Round"
+                        StrokeJoin="Round" />
+                </Viewbox>
+              </Border>
+              <TextBlock Text="Drop videos here" Classes="section" HorizontalAlignment="Center" />
+              <TextBlock Text="or browse for files" Classes="muted" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding SupportedExtensionsText}"
+                         Classes="caption"
+                         FontSize="9.5"
+                         MaxWidth="290"
+                         TextWrapping="Wrap"
+                         TextAlignment="Center"
+                         HorizontalAlignment="Center" />
+              <Button Classes="primary"
+                      Content="Add files"
+                      Click="OnAddFilesClick"
+                      HorizontalAlignment="Center"
+                      Margin="0,4,0,0" />
+            </StackPanel>
+          </Grid>
+        </Grid>
+
+        <!-- Compact drop hint + status -->
+        <StackPanel Grid.Row="4" Spacing="6">
+          <Grid Height="62" IsVisible="{Binding HasFiles}">
+            <Rectangle Classes="dropzone" Classes.drag="{Binding IsDragOver}" />
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="14,0" VerticalAlignment="Center">
+              <Viewbox Width="19" Height="19" VerticalAlignment="Center">
+                <Path Data="M12,3 L12,14 M7,9 L12,14 L17,9 M4,19 L20,19"
+                      Stroke="{DynamicResource AccentBrush}"
+                      StrokeThickness="2"
+                      StrokeLineCap="Round"
+                      StrokeJoin="Round" />
+              </Viewbox>
+              <StackPanel Grid.Column="1" Spacing="1" Margin="10,0">
+                <TextBlock Text="Drop more videos" Classes="body" FontWeight="SemiBold" />
+                <TextBlock Text="They will be added to the queue" Classes="caption" />
+              </StackPanel>
+              <Button Grid.Column="2"
+                      Classes="subtle"
+                      Content="Browse"
+                      Click="OnAddFilesClick"
+                      IsEnabled="{Binding !IsProcessing}" />
+            </Grid>
+          </Grid>
+          <TextBlock Text="{Binding StatusLine}"
+                     Classes="caption"
+                     TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding StatusLine}" />
+        </StackPanel>
+      </Grid>
+
+      <!-- ============================== RIGHT ============================= -->
+      <Grid Grid.Column="2" RowDefinitions="Auto,16,*">
+
+        <!-- Run strip -->
+        <Border Grid.Row="0" Classes="panel">
+          <Grid RowDefinitions="Auto,14,Auto,12,Auto">
+
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+              <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding RunStatusText}" Classes="section" FontSize="15" />
+                  <Border Classes="statusPill accent" IsVisible="{Binding IsProcessing}">
+                    <TextBlock Classes="pillText accent"
+                               Text="{Binding OverallProgress, StringFormat='{}{0:0}%'}" />
+                  </Border>
+                </StackPanel>
+                <TextBlock Text="{Binding RunSubText}"
+                           Classes="muted"
+                           TextTrimming="CharacterEllipsis"
+                           MaxWidth="680" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1"
+                          Orientation="Horizontal"
+                          Spacing="8"
+                          VerticalAlignment="Center">
+                <Button Classes="primary"
+                        Content="{Binding ProcessButtonText}"
+                        Command="{Binding ProcessCommand}"
+                        IsVisible="{Binding ShowProcessButton}" />
+                <Button Classes="danger"
+                        Content="Cancel"
+                        Command="{Binding CancelCommand}"
+                        IsVisible="{Binding ShowCancelButton}" />
+                <Button Classes="primary"
+                        Content="Open output"
+                        Click="OnOpenOutputClick"
+                        IsVisible="{Binding ShowRunActions}" />
+                <Button Classes="ghost"
+                        Content="Run again"
+                        Command="{Binding ProcessCommand}"
+                        IsVisible="{Binding ShowRunAgain}" />
+              </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="2" ColumnDefinitions="*,14,*,14,*">
+              <ContentControl Grid.Column="0"
+                              Content="{Binding AudioStage}"
+                              ContentTemplate="{StaticResource StageStepTemplate}"
+                              HorizontalContentAlignment="Stretch"
+                              HorizontalAlignment="Stretch" />
+              <ContentControl Grid.Column="2"
+                              Content="{Binding KeyframesStage}"
+                              ContentTemplate="{StaticResource StageStepTemplate}"
+                              HorizontalContentAlignment="Stretch"
+                              HorizontalAlignment="Stretch" />
+              <ContentControl Grid.Column="4"
+                              Content="{Binding DedupeStage}"
+                              ContentTemplate="{StaticResource StageStepTemplate}"
+                              HorizontalContentAlignment="Stretch"
+                              HorizontalAlignment="Stretch" />
+            </Grid>
+
+            <ProgressBar Grid.Row="4"
+                         Value="{Binding OverallProgress}"
+                         Maximum="100"
+                         Classes="slim"
+                         IsVisible="{Binding IsProcessing}" />
+          </Grid>
+        </Border>
+
+        <!-- Results -->
+        <Border Grid.Row="2" Classes="panel" Padding="0">
+          <Grid RowDefinitions="Auto,1,*">
+
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="18,14,14,12">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Text="Results" Classes="section" />
+              </StackPanel>
+              <Button Grid.Column="1"
+                      Classes="subtle"
+                      Content="Clear results"
+                      Command="{Binding ClearResultsCommand}"
+                      IsVisible="{Binding HasResults}" />
+            </Grid>
+
+            <Border Grid.Row="1" Classes="hairline" />
+
+            <Grid Grid.Row="2">
+
+              <!-- Empty results -->
+              <StackPanel VerticalAlignment="Center"
+                          HorizontalAlignment="Center"
+                          Spacing="7"
+                          Margin="20"
+                          IsVisible="{Binding !HasResults}">
+                <Border Width="58" Height="58"
+                        CornerRadius="15"
+                        Background="#0E1418"
+                        BorderBrush="#24323A"
+                        BorderThickness="1"
+                        HorizontalAlignment="Center">
+                  <Image Source="avares://VideoLuwak/Assets/logo/logo-mark-transparent-160.png"
+                         Width="40" Height="40"
+                         Stretch="Uniform"
+                         RenderOptions.BitmapInterpolationMode="HighQuality"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="No results yet" Classes="section" HorizontalAlignment="Center" />
+                <TextBlock Text="Process a batch to see savings, audio streams and keyframe counts here."
+                           Classes="muted"
+                           MaxWidth="340"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Center" />
+              </StackPanel>
+
+              <!-- Results content -->
+              <ScrollViewer IsVisible="{Binding HasResults}" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16" Spacing="12">
+
+                  <!-- Aggregate -->
+                  <Border Classes="summaryCard"
+                          IsVisible="{Binding Summary.HasSavings}">
+                    <Grid RowDefinitions="Auto,16,Auto">
+
+                      <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                          <TextBlock Text="{Binding Summary.HeroText}" Classes="hero" />
+                          <TextBlock Text="{Binding Summary.SavingsSubText}"
+                                     Classes="body"
+                                     FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding SummaryScopeText}"
+                                     Classes="caption"
+                                     Margin="0,4,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2"
+                                    Width="340"
+                                    Spacing="10"
+                                    VerticalAlignment="Center">
+                          <Grid ColumnDefinitions="*,Auto,*">
+                            <StackPanel Grid.Column="0" Spacing="1">
+                              <TextBlock Text="{Binding Summary.TotalOriginalText}" Classes="kpi" />
+                              <TextBlock Text="Original" Classes="caption" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="→"
+                                       FontSize="18"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       Margin="12,0"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2" Spacing="1">
+                              <TextBlock Text="{Binding Summary.TotalOutputText}" Classes="kpi" />
+                              <TextBlock Text="After extraction" Classes="caption" />
+                            </StackPanel>
+                          </Grid>
+
+                          <WrapPanel>
+                            <Border Classes="statusPill"
+                                    Classes.success="{Binding Summary.AllSucceeded}"
+                                    Classes.danger="{Binding Summary.HasFailures}"
+                                    Margin="0,0,6,4">
+                              <TextBlock Classes="pillText"
+                                         Classes.success="{Binding Summary.AllSucceeded}"
+                                         Classes.danger="{Binding Summary.HasFailures}"
+                                         Text="{Binding Summary.StatusSummaryText}" />
+                            </Border>
+                            <Border Classes="statusPill" Margin="0,0,6,4">
+                              <TextBlock Classes="pillText" Text="{Binding Summary.AudioNote}" />
+                            </Border>
+                            <Border Classes="statusPill" Margin="0,0,6,4">
+                              <TextBlock Classes="pillText" Text="{Binding Summary.KeyframesNote}" />
+                            </Border>
+                          </WrapPanel>
+                        </StackPanel>
+                      </Grid>
+
+                      <Grid Grid.Row="2" RowDefinitions="Auto,8,Auto">
+                        <ProgressBar Value="{Binding Summary.KeptPercent}"
+                                     Maximum="100"
+                                     Classes="savings" />
+                        <Grid Grid.Row="2" ColumnDefinitions="*,Auto">
+                          <StackPanel Spacing="1">
+                            <TextBlock Text="Kept" Classes="caption" />
+                            <TextBlock Text="{Binding Summary.KeptSummaryText}"
+                                       Classes="body"
+                                       FontWeight="SemiBold"
+                                       FontFeatures="tnum" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="1" Spacing="1" HorizontalAlignment="Right">
+                            <TextBlock Text="Removed" Classes="caption" HorizontalAlignment="Right" />
+                            <TextBlock Text="{Binding Summary.RemovedSummaryText}"
+                                       Classes="body"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Right"
+                                       FontFeatures="tnum" />
+                          </StackPanel>
+                        </Grid>
+                      </Grid>
+                    </Grid>
+                  </Border>
+
+                  <!-- Per-file results -->
+                  <ItemsControl ItemsSource="{Binding Results}">
+                    <ItemsControl.Styles>
+                      <Style Selector="ItemsControl > ContentPresenter">
+                        <Setter Property="HorizontalAlignment" Value="Stretch" />
+                      </Style>
+                    </ItemsControl.Styles>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ResultRowViewModel">
+                        <Border Classes="resultCard" Margin="0,0,0,8">
+                          <StackPanel Spacing="0">
+
+                            <Button Classes="rowToggle"
+                                    Command="{Binding ToggleExpandedCommand}"
+                                    ToolTip.Tip="Show or hide details">
+                              <Grid ColumnDefinitions="Auto,10,*,Auto,8,Auto" VerticalAlignment="Center">
+                                <Border Classes="statusPill"
+                                        Classes.success="{Binding Success}"
+                                        Classes.danger="{Binding Failed}">
+                                  <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="{Binding StatusGlyph}"
+                                               Classes="stateGlyph"
+                                               Classes.success="{Binding Success}"
+                                               Classes.danger="{Binding Failed}" />
+                                    <TextBlock Text="{Binding StatusLabel}"
+                                               Classes="pillText"
+                                               Classes.success="{Binding Success}"
+                                               Classes.danger="{Binding Failed}" />
+                                  </StackPanel>
+                                </Border>
+
+                                <StackPanel Grid.Column="2" Spacing="1">
+                                  <TextBlock Text="{Binding FileName}"
+                                             Classes="body"
+                                             FontWeight="SemiBold"
+                                             TextTrimming="CharacterEllipsis"
+                                             ToolTip.Tip="{Binding VideoPath}" />
+                                  <TextBlock Text="{Binding MetaText}"
+                                             Classes="muted"
+                                             FontSize="11"
+                                             TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+
+                                <Border Grid.Column="3"
+                                        Classes="badge success"
+                                        IsVisible="{Binding Success}"
+                                        Margin="8,0">
+                                  <TextBlock Classes="badgeText success"
+                                             Text="{Binding SizeReductionBadgeText}" />
+                                </Border>
+
+                                <TextBlock Grid.Column="5"
+                                           Text="▸"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           IsVisible="{Binding !IsExpanded}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="5"
+                                           Text="▾"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           IsVisible="{Binding IsExpanded}"
+                                           VerticalAlignment="Center" />
+                              </Grid>
+                            </Button>
+
+                            <StackPanel Spacing="10" IsVisible="{Binding IsExpanded}">
+                              <Border Classes="hairline" Margin="0,10,0,0" />
+
+                              <!-- Success detail -->
+                              <Grid ColumnDefinitions="*,16,*" IsVisible="{Binding Success}">
+                                <Border Grid.Column="0" Classes="inset">
+                                  <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                      <TextBlock Text="Audio streams" Classes="fieldLabel" />
+                                      <TextBlock Grid.Column="1"
+                                                 Text="{Binding AudioStreamsNote}"
+                                                 Classes="caption" />
+                                    </Grid>
+
+                                    <ItemsControl ItemsSource="{Binding AudioStreams}">
+                                      <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:AudioStreamRowViewModel">
+                                          <Grid ColumnDefinitions="Auto,8,*,Auto" Margin="0,3">
+                                            <Path Data="M2,11 L2,13 M5,8 L5,16 M8,5 L8,19 M11,9 L11,15 M14,3 L14,21 M17,7 L17,17 M20,6 L20,18 M23,9 L23,15"
+                                                  Stroke="{DynamicResource AccentBrush}"
+                                                  StrokeThickness="1.4"
+                                                  StrokeLineCap="Round"
+                                                  Width="25" Height="24"
+                                                  Stretch="Uniform"
+                                                  VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                              <TextBlock Text="{Binding Name}"
+                                                         Classes="body"
+                                                         FontSize="12"
+                                                         TextTrimming="CharacterEllipsis" />
+                                              <TextBlock Text="{Binding FormatText}"
+                                                         Classes="caption"
+                                                         FontSize="10.5" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="3" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                              <TextBlock Text="{Binding SizeText}"
+                                                         Classes="body"
+                                                         FontSize="12"
+                                                         HorizontalAlignment="Right" />
+                                              <Border Classes="badge accent"
+                                                      IsVisible="{Binding IsSttOptimized}"
+                                                      HorizontalAlignment="Right">
+                                                <TextBlock Classes="badgeText accent" Text="STT" FontSize="9.5" />
+                                              </Border>
+                                            </StackPanel>
+                                          </Grid>
+                                        </DataTemplate>
+                                      </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Button Classes="link"
+                                            Content="Open audio folder"
+                                            Click="OnOpenAudioFolderClick"
+                                            Tag="{Binding AudioDirectory}"
+                                            HorizontalAlignment="Left" />
+                                  </StackPanel>
+                                </Border>
+
+                                <Border Grid.Column="2" Classes="inset">
+                                  <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                      <TextBlock Text="Keyframes" Classes="fieldLabel" />
+                                      <TextBlock Grid.Column="1"
+                                                 Text="{Binding KeyframesKeptPercentText}"
+                                                 Classes="caption" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding KeyframesSummaryText}"
+                                               Classes="kpi"
+                                               FontSize="20" />
+                                    <ProgressBar Value="{Binding KeyframesKeptPercent}"
+                                                 Maximum="100"
+                                                 Classes="slim" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                      <TextBlock Text="{Binding KeyframesRemovedText}" Classes="caption" />
+                                      <TextBlock Grid.Column="1"
+                                                 Text="{Binding FinalKeyframesSizeText}"
+                                                 Classes="caption" />
+                                    </Grid>
+                                    <Button Classes="link"
+                                            Content="Reveal keyframes"
+                                            Click="OnRevealKeyframesClick"
+                                            Tag="{Binding FinalKeyframesDirectory}"
+                                            HorizontalAlignment="Left" />
+                                  </StackPanel>
+                                </Border>
+                              </Grid>
+
+                              <!-- Failed detail -->
+                              <StackPanel Spacing="8" IsVisible="{Binding Failed}">
+                                <Border Classes="errorPanel">
+                                  <Grid ColumnDefinitions="Auto,10,*">
+                                    <Border Width="20" Height="20"
+                                            CornerRadius="999"
+                                            BorderBrush="{DynamicResource DangerBrush}"
+                                            BorderThickness="1"
+                                            VerticalAlignment="Top">
+                                      <TextBlock Text="!"
+                                                 Foreground="{DynamicResource DangerBrush}"
+                                                 FontSize="11"
+                                                 FontWeight="Bold"
+                                                 HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="2" Spacing="2">
+                                      <TextBlock Text="Extraction failed"
+                                                 Classes="fieldLabel"
+                                                 Foreground="{DynamicResource DangerBrush}" />
+                                      <TextBlock Text="{Binding Error}"
+                                                 Classes="muted"
+                                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                  </Grid>
+                                </Border>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                  <Button Classes="ghost"
+                                          Content="Open folder"
+                                          Click="OnOpenResultFolderClick"
+                                          Tag="{Binding OutputDirectory}" />
+                                  <Button Classes="link"
+                                          Content="Copy error"
+                                          Click="OnCopyTextClick"
+                                          Tag="{Binding Error}" />
+                                </StackPanel>
+                              </StackPanel>
+
+                              <!-- Footer -->
+                              <Grid ColumnDefinitions="Auto,14,Auto,*,Auto" IsVisible="{Binding Success}">
+                                <Button Classes="link"
+                                        Content="Open output folder"
+                                        Click="OnOpenResultFolderClick"
+                                        Tag="{Binding OutputDirectory}" />
+                                <Button Grid.Column="2"
+                                        Classes="link"
+                                        Content="Copy path"
+                                        Click="OnCopyTextClick"
+                                        Tag="{Binding OutputDirectory}" />
+                              </Grid>
+                            </StackPanel>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VideoLuwak.App/VideoLuwak.App.csproj" />
+    <Project Path="src/VideoLuwak.Core/VideoLuwak.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VideoLuwak.Core.Tests/VideoLuwak.Core.Tests.csproj" />
+  </Folder>
+</Solution>

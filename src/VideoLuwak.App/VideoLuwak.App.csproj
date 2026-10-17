@@ -1,0 +1,55 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Console subsystem (Exe) so cmd.exe/PowerShell wait for CLI runs and only print the
+         next prompt after the output and process exit. A GUI-subsystem (WinExe) process is
+         not awaited by the shell, which makes help/version output appear to hang until Enter
+         is pressed. GUI mode detaches the console first (see ConsoleBridge). -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>VideoLuwak.App</RootNamespace>
+    <AssemblyName>VideoLuwak</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/logo/logo.ico</ApplicationIcon>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VideoLuwak.Core\VideoLuwak.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <!-- Windows portable ffmpeg embedding.
+       The static ffmpeg/ffprobe binaries fetched by scripts/fetch-ffmpeg.ps1 are embedded as
+       resources ONLY when building/publishing for a Windows target AND the assets are present.
+       Linux/macOS builds never embed and resolve the system ffmpeg from PATH instead. -->
+  <PropertyGroup>
+    <_WindowsFfmpegDir>$(MSBuildThisFileDirectory)../../assets/ffmpeg/win-x64</_WindowsFfmpegDir>
+    <_EmbedWindowsFfmpeg>false</_EmbedWindowsFfmpeg>
+    <_EmbedWindowsFfmpeg Condition="('$(RuntimeIdentifier)' == 'win-x64' Or '$(RuntimeIdentifier)' == 'win-arm64' Or '$(RuntimeIdentifier)' == 'win-x86' Or ($([MSBuild]::IsOSPlatform('Windows')) And '$(RuntimeIdentifier)' == '')) And Exists('$(_WindowsFfmpegDir)/ffmpeg.exe') And Exists('$(_WindowsFfmpegDir)/ffprobe.exe')">true</_EmbedWindowsFfmpeg>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_EmbedWindowsFfmpeg)' == 'true'">
+    <EmbeddedResource Include="$(_WindowsFfmpegDir)/ffmpeg.exe">
+      <LogicalName>VideoLuwak.ffmpeg.win-x64.ffmpeg.exe</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="$(_WindowsFfmpegDir)/ffprobe.exe">
+      <LogicalName>VideoLuwak.ffmpeg.win-x64.ffprobe.exe</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

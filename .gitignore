@@ -1,0 +1,28 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+publish/
+
+# Rider / VS
+.idea/
+.vs/
+*.user
+
+# Bundled ffmpeg binaries (fetched via scripts/fetch-ffmpeg.ps1)
+assets/ffmpeg/*/*.exe
+assets/ffmpeg/*/*.dll
+assets/ffmpeg/*/SHA256SUMS.txt
+
+# Oh My Openagent files
+.omo/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Crash dumps
+core
+core.*
