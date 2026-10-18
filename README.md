@@ -10,12 +10,14 @@
 
 <p align="center">
   <a href="https://github.com/TraberSoftware/VideoLuwak/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/TraberSoftware/VideoLuwak?display_name=tag&sort=semver&style=flat-square&color=2F8F83"></a>
+  <a href="https://trabersoftware.github.io/VideoLuwak/"><img alt="Website" src="https://img.shields.io/badge/website-trabersoftware.github.io%2FVideoLuwak-2F8F83?style=flat-square"></a>
   <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white">
   <img alt="Windows, Linux, macOS" src="https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-2F8F83?style=flat-square">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2F8F83?style=flat-square"></a>
 </p>
 
 <p align="center">
+  <a href="https://trabersoftware.github.io/VideoLuwak/">Website</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
@@ -93,13 +95,43 @@ produced, and how many keyframes survived de-duplication.
 ## Quick start
 
 1. **Download a release.** Grab the latest Windows, Linux, or macOS build from
-   [Releases](#releases-github-actions). FFmpeg is a system requirement on every platform. On
+   [Releases](#releases-github-actions) — or use the
+   [download buttons on the website](https://trabersoftware.github.io/VideoLuwak/#download),
+   which always resolve to the newest release. FFmpeg is a system requirement on every platform. On
    Windows, the first processing run shows a notice and installs it automatically with `winget`;
    Linux and macOS users install it with their package manager.
 2. **Add a video.** Drop it onto the VideoLuwak window, or run the CLI:
    `VideoLuwak "presentation.mp4" -o ./extracts`.
 3. **Use the result.** `audio/` contains one WAV per stream, `final_keyframes/` contains the
    de-duplicated frames, and `processing_result.json` + `audio_streams.json` describe the run.
+
+---
+
+## Website
+
+The product site lives in [`site/`](site/) and is published to
+**https://trabersoftware.github.io/VideoLuwak/** by
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml).
+
+- **Pure static files.** `index.html`, `styles.css`, and `app.js` — no build step, no dependencies.
+- **Automatic deployment.** Every push to `master` that changes `site/**` (or the workflow itself)
+  uploads the folder and deploys it with GitHub Pages. Run the workflow manually from the Actions
+  tab to redeploy without a new commit.
+- **Always links to the latest release.** The download buttons start at `releases/latest` and are
+  upgraded in the browser to the exact Windows, Linux, and macOS assets from the GitHub Releases
+  API, so no redeploy is needed when a new version ships.
+- **Light and dark themes.** The page follows the operating-system preference on first visit and
+  remembers an explicit choice.
+
+Preview locally:
+
+```bash
+python3 -m http.server 4173 --directory site
+# open http://localhost:4173
+```
+
+One-time repository setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+After that, the workflow publishes on every site change.
 
 ---
 
@@ -381,6 +413,7 @@ src/VideoLuwak.Core   # cross-platform engine: FFmpeg, hashing, pipeline, settin
 src/VideoLuwak.App    # Avalonia app: dual-mode entry point (CLI + GUI)
 tests/                # unit + integration tests
 scripts/              # macOS DMG packager
-.github/workflows     # release automation (master -> test -> build -> GitHub release)
+site/                 # static product site (GitHub Pages)
+.github/workflows     # release automation + Pages deployment
 docs/                 # README screenshots
 ```

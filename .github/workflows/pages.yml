@@ -1,0 +1,57 @@
+name: Deploy website
+
+# Publishes the static marketing site in site/ to GitHub Pages whenever the
+# site changes on master. Release downloads are resolved in the browser from
+# the latest GitHub release, so a new release does not require a redeploy.
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  # Allow a manual redeploy from the Actions tab.
+  workflow_dispatch:
+
+# Pages deployments need the OIDC token and write access to the Pages service.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel an in-flight Pages deployment; queue the next one instead.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy GitHub Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Validate the static site
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f site/index.html
+          test -f site/styles.css
+          test -f site/app.js
+          node --check site/app.js
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
