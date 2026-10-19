@@ -103,7 +103,8 @@ produced, and how many keyframes survived de-duplication.
 2. **Add a video.** Drop it onto the VideoLuwak window, or run the CLI:
    `VideoLuwak "presentation.mp4" -o ./extracts`.
 3. **Use the result.** `audio/` contains one WAV per stream, `final_keyframes/` contains the
-   de-duplicated frames, and `processing_result.json` + `audio_streams.json` describe the run.
+   de-duplicated frames, `keyframes.json` records each keyframe's timestamp and time range, and
+   `processing_result.json` + `audio_streams.json` describe the run.
 
 ---
 
@@ -153,6 +154,7 @@ ordinary folder instead of an application bundle. The folder contains:
 │   └── ...
 ├── final_keyframes/           # keyframes kept after perceptual-hash de-duplication
 │   └── ...
+├── keyframes.json             # per-keyframe timestamps, kept flags, time ranges + audio references
 └── processing_result.json     # machine-readable summary of the run
 ```
 
@@ -169,14 +171,60 @@ ordinary folder instead of an application bundle. The folder contains:
   `outputDescription`; the document also has a top-level `sttOptimized` flag and a `target` object
   with the `sampleRate`, `channels` and `sampleFormat` that were applied.
 - **Keyframes** — extracted with `ffmpeg -skip_frame nokey` (genuine I-frames only). Files are
-  zero-padded (`kf_%06d`) so alphabetical order equals chronological order.
+  zero-padded (`kf_%06d`) so alphabetical order equals chronological order. Each frame also gets
+  its source timestamp, and `keyframes.json` pairs every kept frame with the audio window it
+  covers.
 - **De-duplication** — keyframes are enumerated in ascending order; each frame is compared to the
   **previous frame's 64-bit perceptual hash (pHash)**. If the Hamming distance is `<= threshold`
   the frame is dropped. The reference hash **always rolls forward** to the last generated frame —
   even when that frame was removed — so a chain of near-identical frames cannot "drift" past the
-  threshold and all collapse to the first one.
+  threshold and all collapse to the first one. Kept frames carry an `endTimestamp` equal to the
+  next kept frame's timestamp (or the video duration for the last kept frame), which enables time
+  range correlation. Removed frames are still listed with `kept: false` and no end timestamp.
 - **Summary** — `ProcessingResult` (and `processing_result.json`) report original size, extracted
   audio, keyframes extracted/kept/removed, total output size, and the size reduction percentage.
+  The result also includes `keyframeManifestPath`, the path to `keyframes.json`.
+
+### Keyframe timing manifest
+
+`keyframes.json` lets downstream tools pair each kept keyframe image with the matching audio
+segment, and therefore the transcript, when building context for an LLM. It lists every extracted
+frame in chronological order with its ordinal, relative file paths, timestamp, time range and kept
+flag, plus the extracted audio files that cover those ranges.
+
+```json
+{
+  "video": "/videos/talk.mp4",
+  "durationSeconds": 600,
+  "timeFormat": "HH:MM:SS.mmm",
+  "audio": [
+    {
+      "file": "audio/audio_01_eng.wav",
+      "language": "eng",
+      "description": "Audio #1 (stream 1) - eng - aac, 1ch, 48000 Hz"
+    }
+  ],
+  "keyframes": [
+    {
+      "ordinal": 12,
+      "file": "final_keyframes/kf_000012.jpg",
+      "sourceFile": "keyframes/kf_000012.jpg",
+      "timestampSeconds": 83.417,
+      "timestamp": "00:01:23.417",
+      "endTimestampSeconds": 91.2,
+      "endTimestamp": "00:01:31.200",
+      "kept": true,
+      "timestampEstimated": false
+    }
+  ]
+}
+```
+
+Timestamps come from `ffprobe` and are normalized to the start of the media timeline, so they
+line up with the extracted WAV files (which begin at 0) even when the container has a non-zero
+start time. If FFprobe does not return exactly one timestamp per extracted frame, VideoLuwak
+falls back to a proportional estimate for every frame and sets `timestampEstimated` to `true`.
+All paths inside the manifest are relative to the output directory.
 
 ### pHash without an image library
 
@@ -389,7 +437,8 @@ dotnet test
 
 Unit tests cover the pHash, the de-duplication rolling-reference algorithm, path layout, CLI
 parsing, progress parsing and settings. Integration tests generate a real multi-audio video with
-FFmpeg and run the full pipeline end-to-end (they no-op when FFmpeg is not installed).
+FFmpeg, run the full pipeline end-to-end (they no-op when FFmpeg is not installed), and assert the
+manifest timestamps and kept flags.
 
 ---
 

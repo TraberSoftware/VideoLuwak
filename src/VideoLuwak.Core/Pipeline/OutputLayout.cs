@@ -9,6 +9,7 @@ namespace VideoLuwak.Core.Pipeline;
 ///     audio/                       (one .wav per audio stream + audio_streams.json)
 ///     keyframes/                   (all extracted I-frames)
 ///     final_keyframes/             (keyframes kept after pHash deduplication)
+///     keyframes.json               (keyframe timestamps, ranges and audio references)
 ///     processing_result.json       (summary)
 /// </code>
 /// </summary>
@@ -18,6 +19,7 @@ public static class OutputLayout
     public const string KeyframesFolderName = "keyframes";
     public const string FinalKeyframesFolderName = "final_keyframes";
     public const string AudioDescriptionFileName = "audio_streams.json";
+    public const string KeyframeManifestFileName = "keyframes.json";
     public const string ResultFileName = "processing_result.json";
     private const string EscapedNameSuffix = " (output)";
 
@@ -73,6 +75,9 @@ public static class OutputLayout
 
     public static string GetAudioDescriptionPath(string outputDirectory) =>
         Path.Combine(outputDirectory, AudioFolderName, AudioDescriptionFileName);
+
+    public static string GetKeyframeManifestPath(string outputDirectory) =>
+        Path.Combine(outputDirectory, KeyframeManifestFileName);
 
     public static string GetResultPath(string outputDirectory) =>
         Path.Combine(outputDirectory, ResultFileName);

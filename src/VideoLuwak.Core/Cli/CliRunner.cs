@@ -259,6 +259,12 @@ public sealed class CliRunner
 
         await output.WriteLineAsync(
             $"Keyframes:         {result.KeyframesExtracted} extracted, {result.KeyframesKept} kept, {result.KeyframesRemoved} removed").ConfigureAwait(false);
+
+        if (!string.IsNullOrEmpty(result.KeyframeManifestPath))
+        {
+            await output.WriteLineAsync($"Keyframe manifest: {result.KeyframeManifestPath}").ConfigureAwait(false);
+        }
+
         await output.WriteLineAsync("Sizes:").ConfigureAwait(false);
         await output.WriteLineAsync($"  Original:        {FormatSize(result.OriginalSizeBytes)}").ConfigureAwait(false);
         await output.WriteLineAsync($"  Audio total:     {FormatSize(SumAudioSize(result.AudioStreams))}").ConfigureAwait(false);

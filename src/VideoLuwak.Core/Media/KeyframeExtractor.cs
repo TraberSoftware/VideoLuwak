@@ -195,6 +195,7 @@ public sealed class KeyframeExtractor : IKeyframeExtractor
             "-an",
             "-sn",
             "-dn",
+            "-map", "0:v:0",
             "-fps_mode", "passthrough",
             "-f", "image2",
         };

@@ -9,7 +9,7 @@
     change into master; if the tag already exists the release is intentionally skipped.
   -->
   <PropertyGroup>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <!-- Keep the version switch and the assembly informational version identical to the
          manifest (do not append "+<commit>" in CI builds). -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

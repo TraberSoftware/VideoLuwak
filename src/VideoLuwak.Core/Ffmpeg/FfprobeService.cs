@@ -51,6 +51,77 @@ public sealed class FfprobeService : IFfprobeService
         return Parse(videoPath, result.StandardOutput);
     }
 
+    public async Task<IReadOnlyList<double>> ProbeKeyframeTimestampsAsync(
+        string videoPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(videoPath);
+
+        var ffprobe = _locator.ResolveFfprobe();
+        var request = new ProcessRequest
+        {
+            FileName = ffprobe,
+            Arguments =
+            [
+                "-v", "quiet",
+                "-select_streams", "v:0",
+                "-skip_frame", "nokey",
+                "-show_frames",
+                "-show_entries", "frame=key_frame,best_effort_timestamp_time,pts_time,pkt_dts_time:format=start_time",
+                "-of", "json",
+                videoPath,
+            ],
+        };
+
+        var result = await _runner.RunAsync(request, cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (!result.Succeeded)
+        {
+            throw new FfmpegExecutionException(
+                $"FFprobe failed with exit code {result.ExitCode} while probing keyframe timestamps for '{videoPath}'.",
+                result.ExitCode,
+                result.StandardError);
+        }
+
+        return ParseKeyframeTimestamps(result.StandardOutput);
+    }
+
+    internal static IReadOnlyList<double> ParseKeyframeTimestamps(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("frames", out var frames) ||
+            frames.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        double startTimeSeconds = 0.0;
+        if (document.RootElement.TryGetProperty("format", out var format) &&
+            format.ValueKind == JsonValueKind.Object)
+        {
+            startTimeSeconds = GetDouble(format, "start_time") ?? 0.0;
+        }
+
+        var timestamps = new List<double>();
+        foreach (var frame in frames.EnumerateArray())
+        {
+            if (GetLong(frame, "key_frame") != 1)
+            {
+                continue;
+            }
+
+            var timestamp = GetDouble(frame, "best_effort_timestamp_time") ??
+                            GetDouble(frame, "pts_time") ??
+                            GetDouble(frame, "pkt_dts_time");
+
+            if (timestamp.HasValue)
+            {
+                timestamps.Add(Math.Max(0.0, timestamp.Value - startTimeSeconds));
+            }
+        }
+
+        return timestamps;
+    }
+
     private static ProbeResult Parse(string videoPath, string json)
     {
         using var document = JsonDocument.Parse(json);

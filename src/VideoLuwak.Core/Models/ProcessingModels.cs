@@ -80,6 +80,9 @@ public sealed record ProcessingResult
 
     public int KeyframesRemoved { get; init; }
 
+    /// <summary>Absolute path of the generated <c>keyframes.json</c>, empty on failure.</summary>
+    public string KeyframeManifestPath { get; init; } = string.Empty;
+
     public long FinalKeyframesSizeBytes { get; init; }
 
     /// <summary>Total bytes of all produced artifacts (audio wavs + final keyframes).</summary>

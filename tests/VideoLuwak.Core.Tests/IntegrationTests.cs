@@ -109,6 +109,46 @@ public sealed class IntegrationTests
         Directory.GetFiles(finalDirectory).Should().HaveCount(result.KeyframesKept);
         (result.KeyframesKept + result.KeyframesRemoved).Should().Be(result.KeyframesExtracted);
 
+        // --- keyframe manifest -----------------------------------------------------
+        var manifestPath = Path.Combine(outputDirectory, "keyframes.json");
+        File.Exists(manifestPath).Should().BeTrue();
+        result.KeyframeManifestPath.Should().Be(manifestPath);
+
+        using (var manifestDocument = JsonDocument.Parse(File.ReadAllText(manifestPath)))
+        {
+            var manifest = manifestDocument.RootElement;
+            manifest.GetProperty("video").GetString().Should().Be(Path.GetFullPath(moviePath));
+            manifest.GetProperty("timeFormat").GetString().Should().Be("HH:MM:SS.mmm");
+            manifest.GetProperty("audio").GetArrayLength().Should().Be(result.AudioStreams.Count);
+
+            var manifestKeyframes = manifest.GetProperty("keyframes");
+            manifestKeyframes.GetArrayLength().Should().Be(result.KeyframesExtracted);
+
+            var previousTimestamp = -1.0;
+            var kept = 0;
+            foreach (var keyframe in manifestKeyframes.EnumerateArray())
+            {
+                var timestamp = keyframe.GetProperty("timestampSeconds").GetDouble();
+                timestamp.Should().BeGreaterThanOrEqualTo(0.0);
+                timestamp.Should().BeLessThanOrEqualTo(result.DurationSeconds + 0.001);
+                timestamp.Should().BeGreaterThanOrEqualTo(previousTimestamp);
+                previousTimestamp = timestamp;
+
+                if (keyframe.GetProperty("kept").GetBoolean())
+                {
+                    kept++;
+                    var end = keyframe.GetProperty("endTimestampSeconds").GetDouble();
+                    end.Should().BeGreaterThanOrEqualTo(timestamp);
+                }
+                else
+                {
+                    keyframe.GetProperty("endTimestampSeconds").ValueKind.Should().Be(JsonValueKind.Null);
+                }
+            }
+
+            kept.Should().Be(result.KeyframesKept);
+        }
+
         // --- persisted result ------------------------------------------------------
         var resultPath = Path.Combine(outputDirectory, "processing_result.json");
         File.Exists(resultPath).Should().BeTrue();
@@ -118,6 +158,7 @@ public sealed class IntegrationTests
         persisted.KeyframesExtracted.Should().Be(result.KeyframesExtracted);
         persisted.KeyframesKept.Should().Be(result.KeyframesKept);
         persisted.KeyframesRemoved.Should().Be(result.KeyframesRemoved);
+        persisted.KeyframeManifestPath.Should().Be(manifestPath);
         persisted.AudioStreams.Should().HaveCount(2);
     }
 
@@ -206,6 +247,23 @@ public sealed class IntegrationTests
         Directory.Exists(Path.Combine(outputDirectory, "final_keyframes")).Should().BeFalse();
         Directory.GetFiles(Path.Combine(outputDirectory, "audio"), "*.wav").Should().ContainSingle();
         Directory.GetFiles(Path.Combine(outputDirectory, "keyframes"), "kf_*.jpg").Should().NotBeEmpty();
+
+        var manifestPath = Path.Combine(outputDirectory, "keyframes.json");
+        File.Exists(manifestPath).Should().BeTrue();
+        using var manifestDocument = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        var manifestKeyframes = manifestDocument.RootElement.GetProperty("keyframes");
+        manifestKeyframes.GetArrayLength().Should().Be(result.KeyframesExtracted);
+        foreach (var keyframe in manifestKeyframes.EnumerateArray())
+        {
+            keyframe.GetProperty("kept").GetBoolean().Should().BeTrue();
+            keyframe.GetProperty("endTimestampSeconds").ValueKind.Should().NotBe(JsonValueKind.Null);
+
+            var file = keyframe.GetProperty("file").GetString() ?? string.Empty;
+            file.Should().StartWith("keyframes/");
+            file.Should().Be(keyframe.GetProperty("sourceFile").GetString());
+            File.Exists(Path.Combine(outputDirectory, file.Replace('/', Path.DirectorySeparatorChar)))
+                .Should().BeTrue();
+        }
     }
 
     private static void CreateVideo(

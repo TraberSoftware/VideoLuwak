@@ -95,6 +95,7 @@ public sealed class OutputLayoutTests
         OutputLayout.KeyframesFolderName.Should().Be("keyframes");
         OutputLayout.FinalKeyframesFolderName.Should().Be("final_keyframes");
         OutputLayout.AudioDescriptionFileName.Should().Be("audio_streams.json");
+        OutputLayout.KeyframeManifestFileName.Should().Be("keyframes.json");
         OutputLayout.ResultFileName.Should().Be("processing_result.json");
     }
 
@@ -111,6 +112,8 @@ public sealed class OutputLayoutTests
             .Should().Be(Path.Combine(outputDirectory, OutputLayout.FinalKeyframesFolderName));
         OutputLayout.GetAudioDescriptionPath(outputDirectory)
             .Should().Be(Path.Combine(outputDirectory, OutputLayout.AudioFolderName, OutputLayout.AudioDescriptionFileName));
+        OutputLayout.GetKeyframeManifestPath(outputDirectory)
+            .Should().Be(Path.Combine(outputDirectory, OutputLayout.KeyframeManifestFileName));
         OutputLayout.GetResultPath(outputDirectory)
             .Should().Be(Path.Combine(outputDirectory, OutputLayout.ResultFileName));
     }

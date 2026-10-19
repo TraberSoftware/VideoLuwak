@@ -6,6 +6,16 @@ namespace VideoLuwak.Core.Abstractions;
 public interface IFfprobeService
 {
     Task<ProbeResult> ProbeAsync(string videoPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the presentation timestamps (in seconds, file order) of the video's
+    /// keyframes, relative to the start of the media timeline (so audio extracted to a
+    /// WAV starts at 0) and matching the frames produced by
+    /// <see cref="IKeyframeExtractor"/> with <c>-skip_frame nokey</c>.
+    /// </summary>
+    Task<IReadOnlyList<double>> ProbeKeyframeTimestampsAsync(
+        string videoPath,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Extracts every audio stream of a video into individual .wav files.</summary>
