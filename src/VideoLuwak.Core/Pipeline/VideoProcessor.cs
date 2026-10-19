@@ -64,6 +64,7 @@ public sealed class VideoProcessor : IVideoProcessor
         var stopwatch = Stopwatch.StartNew();
         var outputDirectory = string.Empty;
         var keyframeManifestPath = string.Empty;
+        var finalKeyframeManifestPath = string.Empty;
         ProbeResult? probe = null;
         IReadOnlyList<AudioStreamResult> audioResults = [];
         IReadOnlyList<string> keyframes = [];
@@ -76,7 +77,8 @@ public sealed class VideoProcessor : IVideoProcessor
             if (!File.Exists(videoPath))
             {
                 return BuildResult(
-                    videoPath, outputDirectory, probe, audioResults, keyframes, deduplication, string.Empty,
+                    videoPath, outputDirectory, probe, audioResults, keyframes, deduplication,
+                    string.Empty, string.Empty,
                     options, stopwatch, success: false, error: $"Input file not found: {videoPath}");
             }
 
@@ -121,19 +123,38 @@ public sealed class VideoProcessor : IVideoProcessor
                 }
             }
 
-            var manifest = KeyframeManifestWriter.Build(
+            var allManifest = KeyframeManifestWriter.BuildAll(
                 videoPath,
                 probe?.DurationSeconds ?? 0.0,
                 keyframes,
                 keyframeTimestamps,
                 audioResults,
-                outputDirectory,
-                deduplication);
+                outputDirectory);
 
-            keyframeManifestPath = KeyframeManifestWriter.Write(outputDirectory, manifest);
+            keyframeManifestPath = KeyframeManifestWriter.WriteAll(outputDirectory, allManifest);
+
+            if (deduplication is not null)
+            {
+                var finalManifest = KeyframeManifestWriter.BuildFinal(
+                    videoPath,
+                    probe?.DurationSeconds ?? 0.0,
+                    keyframes,
+                    keyframeTimestamps,
+                    audioResults,
+                    outputDirectory,
+                    deduplication);
+
+                finalKeyframeManifestPath = KeyframeManifestWriter.WriteFinal(outputDirectory, finalManifest);
+            }
+            else
+            {
+                // A previous run's final manifest must not survive when de-duplication is disabled.
+                DeleteFile(OutputLayout.GetFinalKeyframeManifestPath(outputDirectory));
+            }
 
             var result = BuildResult(
-                videoPath, outputDirectory, probe, audioResults, keyframes, deduplication, keyframeManifestPath,
+                videoPath, outputDirectory, probe, audioResults, keyframes, deduplication,
+                keyframeManifestPath, finalKeyframeManifestPath,
                 options, stopwatch, success: true, error: null);
 
             WriteResult(outputDirectory, result);
@@ -149,7 +170,8 @@ public sealed class VideoProcessor : IVideoProcessor
         catch (Exception ex)
         {
             var failed = BuildResult(
-                videoPath, outputDirectory, probe, audioResults, keyframes, deduplication, string.Empty,
+                videoPath, outputDirectory, probe, audioResults, keyframes, deduplication,
+                string.Empty, string.Empty,
                 options, stopwatch, success: false, error: ex.Message);
 
             WriteResultBestEffort(outputDirectory, failed);
@@ -167,6 +189,7 @@ public sealed class VideoProcessor : IVideoProcessor
             DeleteSubdirectory(Path.Combine(outputDirectory, OutputLayout.KeyframesFolderName));
             DeleteSubdirectory(Path.Combine(outputDirectory, OutputLayout.FinalKeyframesFolderName));
             DeleteFile(OutputLayout.GetKeyframeManifestPath(outputDirectory));
+            DeleteFile(OutputLayout.GetFinalKeyframeManifestPath(outputDirectory));
         }
 
         Directory.CreateDirectory(outputDirectory);
@@ -205,7 +228,7 @@ public sealed class VideoProcessor : IVideoProcessor
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Best effort: a stale manifest that cannot be removed is overwritten on success.
+            // Best effort: cleanup failures must not fail processing.
         }
     }
 
@@ -217,6 +240,7 @@ public sealed class VideoProcessor : IVideoProcessor
         IReadOnlyList<string> keyframes,
         DeduplicationResult? deduplication,
         string keyframeManifestPath,
+        string finalKeyframeManifestPath,
         ProcessingOptions options,
         Stopwatch stopwatch,
         bool success,
@@ -248,6 +272,7 @@ public sealed class VideoProcessor : IVideoProcessor
             KeyframesKept = deduplication?.KeptFiles ?? 0,
             KeyframesRemoved = deduplication?.RemovedFiles ?? 0,
             KeyframeManifestPath = keyframeManifestPath,
+            FinalKeyframeManifestPath = finalKeyframeManifestPath,
             FinalKeyframesSizeBytes = finalKeysize,
             TotalOutputSizeBytes = totalOutput,
             SizeReductionPercent = reduction,

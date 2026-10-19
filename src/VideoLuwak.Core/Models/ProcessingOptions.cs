@@ -17,7 +17,7 @@ public sealed record ProcessingOptions
     /// <summary>ffmpeg -q:v style quality for jpg keyframes (2 = near-lossless, 31 = worst).</summary>
     public int JpegQuality { get; init; } = 2;
 
-    /// <summary>When false the deduplicated (final) keyframe folder is skipped.</summary>
+    /// <summary>When false the deduplicated (final) keyframe folder and manifest are skipped.</summary>
     public bool DeduplicateKeyframes { get; init; } = true;
 
     /// <summary>

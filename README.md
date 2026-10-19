@@ -102,8 +102,9 @@ produced, and how many keyframes survived de-duplication.
    Linux and macOS users install it with their package manager.
 2. **Add a video.** Drop it onto the VideoLuwak window, or run the CLI:
    `VideoLuwak "presentation.mp4" -o ./extracts`.
-3. **Use the result.** `audio/` contains one WAV per stream, `final_keyframes/` contains the
-   de-duplicated frames, `keyframes.json` records each keyframe's timestamp and time range, and
+3. **Use the result.** `audio/` contains one WAV per stream and `final_keyframes/` contains the
+   de-duplicated images. `keyframes.json` records a timestamp and time range for every extracted
+   frame, while `final_keyframes.json` records the same for only the de-duplicated subset. Finally,
    `processing_result.json` + `audio_streams.json` describe the run.
 
 ---
@@ -154,7 +155,8 @@ ordinary folder instead of an application bundle. The folder contains:
 │   └── ...
 ├── final_keyframes/           # keyframes kept after perceptual-hash de-duplication
 │   └── ...
-├── keyframes.json             # per-keyframe timestamps, kept flags, time ranges + audio references
+├── keyframes.json             # start/end timestamps for every extracted keyframe
+├── final_keyframes.json       # start/end timestamps for deduplicated keyframes only (reduced)
 └── processing_result.json     # machine-readable summary of the run
 ```
 
@@ -171,32 +173,45 @@ ordinary folder instead of an application bundle. The folder contains:
   `outputDescription`; the document also has a top-level `sttOptimized` flag and a `target` object
   with the `sampleRate`, `channels` and `sampleFormat` that were applied.
 - **Keyframes** — extracted with `ffmpeg -skip_frame nokey` (genuine I-frames only). Files are
-  zero-padded (`kf_%06d`) so alphabetical order equals chronological order. Each frame also gets
-  its source timestamp, and `keyframes.json` pairs every kept frame with the audio window it
-  covers.
+  zero-padded (`kf_%06d`) so alphabetical order equals chronological order. Every extracted frame
+  gets a timestamp and a time range in `keyframes.json`, so the complete extraction stays
+  inspectable and can be paired with the audio window it covers.
 - **De-duplication** — keyframes are enumerated in ascending order; each frame is compared to the
   **previous frame's 64-bit perceptual hash (pHash)**. If the Hamming distance is `<= threshold`
   the frame is dropped. The reference hash **always rolls forward** to the last generated frame —
   even when that frame was removed — so a chain of near-identical frames cannot "drift" past the
-  threshold and all collapse to the first one. Kept frames carry an `endTimestamp` equal to the
-  next kept frame's timestamp (or the video duration for the last kept frame), which enables time
-  range correlation. Removed frames are still listed with `kept: false` and no end timestamp.
+  threshold and all collapse to the first one. Kept frames are written to `final_keyframes.json`,
+  where each entry's end is the next kept frame's start (or the video duration for the last kept
+  frame). Time ranges therefore skip over removed duplicates. This is the compact file to scan;
+  `keyframes.json` remains the complete record.
 - **Summary** — `ProcessingResult` (and `processing_result.json`) report original size, extracted
   audio, keyframes extracted/kept/removed, total output size, and the size reduction percentage.
-  The result also includes `keyframeManifestPath`, the path to `keyframes.json`.
+  The result also includes `keyframeManifestPath` (the path to `keyframes.json`) and
+  `finalKeyframeManifestPath` (the path to `final_keyframes.json`, empty when de-duplication is
+  disabled).
 
-### Keyframe timing manifest
+### Keyframe timing manifests
 
-`keyframes.json` lets downstream tools pair each kept keyframe image with the matching audio
-segment, and therefore the transcript, when building context for an LLM. It lists every extracted
-frame in chronological order with its ordinal, relative file paths, timestamp, time range and kept
-flag, plus the extracted audio files that cover those ranges.
+Every run writes two manifests with the same entry schema. Use them to pair a keyframe image with
+the audio segment (and transcript) for that moment when building context for an LLM.
+
+- `keyframes.json` is the complete record. It lists **every extracted frame**, so it can be large.
+  Reach for it when you need the full extraction.
+- `final_keyframes.json` is the reduced record. It lists **only the frames that survived pHash
+  de-duplication** and is the file to scan or feed downstream in normal use.
+
+Both manifests include a start and an end for every listed frame. The end is the timestamp of the
+next entry in that same manifest; for the last entry it is the video duration. In
+`final_keyframes.json` the end therefore skips over removed duplicates, giving the de-duplication
+adjusted range. Top-level keys are `video`, `durationSeconds`, `timeFormat`, `keyframeCount` (the
+number of entries in that file), `audio[]` and `keyframes[]`.
 
 ```json
 {
   "video": "/videos/talk.mp4",
   "durationSeconds": 600,
   "timeFormat": "HH:MM:SS.mmm",
+  "keyframeCount": 195,
   "audio": [
     {
       "file": "audio/audio_01_eng.wav",
@@ -206,25 +221,45 @@ flag, plus the extracted audio files that cover those ranges.
   ],
   "keyframes": [
     {
-      "ordinal": 12,
-      "file": "final_keyframes/kf_000012.jpg",
-      "sourceFile": "keyframes/kf_000012.jpg",
-      "timestampSeconds": 83.417,
-      "timestamp": "00:01:23.417",
-      "endTimestampSeconds": 91.2,
-      "endTimestamp": "00:01:31.200",
-      "kept": true,
+      "ordinal": 4,
+      "file": "keyframes/kf_000004.jpg",
+      "timestampSeconds": 3,
+      "timestamp": "00:00:03.000",
+      "endTimestampSeconds": 6,
+      "endTimestamp": "00:00:06.000",
       "timestampEstimated": false
     }
   ]
 }
 ```
 
-Timestamps come from `ffprobe` and are normalized to the start of the media timeline, so they
-line up with the extracted WAV files (which begin at 0) even when the container has a non-zero
-start time. If FFprobe does not return exactly one timestamp per extracted frame, VideoLuwak
-falls back to a proportional estimate for every frame and sets `timestampEstimated` to `true`.
-All paths inside the manifest are relative to the output directory.
+The same frame in `final_keyframes.json` keeps its original ordinal but points at the de-duplicated
+image, and its end moves to the next kept frame:
+
+```json
+{
+  "ordinal": 4,
+  "file": "final_keyframes/kf_000004.jpg",
+  "timestampSeconds": 3,
+  "timestamp": "00:00:03.000",
+  "endTimestampSeconds": 21,
+  "endTimestamp": "00:00:21.000",
+  "timestampEstimated": false
+}
+```
+
+`ordinal` is the original 1-based extracted order, so final entries can have gaps (for example
+`1, 2, 3, 4, 7`) while still sorting chronologically. The `file` path is relative to the output
+directory: `keyframes/...` in `keyframes.json`, `final_keyframes/...` in `final_keyframes.json`.
+
+Timestamps come from `ffprobe` and are normalized to the start of the media timeline, so they line
+up with the extracted WAV files (which begin at 0) even when the container has a non-zero start
+time. If FFprobe does not return exactly one timestamp per extracted frame, VideoLuwak falls back to
+proportional estimates for every frame and sets `timestampEstimated` to `true`.
+
+With `--no-dedup`, `keyframes.json` is still written with all frames and non-null ends, but
+`final_keyframes.json` is not written. The CLI prints both a `Keyframe manifest:` and a
+`Final keyframe manifest:` line so you can find either file quickly.
 
 ### pHash without an image library
 
@@ -437,8 +472,9 @@ dotnet test
 
 Unit tests cover the pHash, the de-duplication rolling-reference algorithm, path layout, CLI
 parsing, progress parsing and settings. Integration tests generate a real multi-audio video with
-FFmpeg, run the full pipeline end-to-end (they no-op when FFmpeg is not installed), and assert the
-manifest timestamps and kept flags.
+FFmpeg, run the full pipeline end-to-end (they no-op when FFmpeg is not installed), and assert both
+manifests: entry counts, start/end ranges, and that each final entry's end matches the next kept
+entry's start.
 
 ---
 

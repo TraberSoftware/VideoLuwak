@@ -262,7 +262,12 @@ public sealed class CliRunner
 
         if (!string.IsNullOrEmpty(result.KeyframeManifestPath))
         {
-            await output.WriteLineAsync($"Keyframe manifest: {result.KeyframeManifestPath}").ConfigureAwait(false);
+            await output.WriteLineAsync($"Keyframe manifest:       {result.KeyframeManifestPath}").ConfigureAwait(false);
+        }
+
+        if (!string.IsNullOrEmpty(result.FinalKeyframeManifestPath))
+        {
+            await output.WriteLineAsync($"Final keyframe manifest: {result.FinalKeyframeManifestPath}").ConfigureAwait(false);
         }
 
         await output.WriteLineAsync("Sizes:").ConfigureAwait(false);

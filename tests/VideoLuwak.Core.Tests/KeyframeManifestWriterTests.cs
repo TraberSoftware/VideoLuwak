@@ -8,11 +8,54 @@ namespace VideoLuwak.Core.Tests;
 public sealed class KeyframeManifestWriterTests
 {
     [Fact]
-    public void Build_WithDeduplication_PairsTimestampsKeptFlagsAndRanges()
+    public void BuildAll_PairsEveryFrameAndAssignsSequentialEnds()
     {
         using var temp = new TempDirectory();
-        var output = temp.Path;
-        var extracted = CreateKeyframePaths(output, 4);
+        var extracted = CreateKeyframePaths(temp.Path, 4);
+        var audio = new AudioStreamResult
+        {
+            OutputPath = Path.Combine(temp.Path, "audio", "audio_01_eng.wav"),
+            Description = "Audio #1 (stream 1) - eng - aac, 1ch, 48000 Hz",
+            Stream = new AudioStreamInfo { Language = "eng" },
+        };
+
+        var manifest = KeyframeManifestWriter.BuildAll(
+            "/videos/talk.mp4",
+            10.0,
+            extracted,
+            [0.0, 2.0, 4.0, 6.0],
+            [audio],
+            temp.Path);
+
+        manifest.Video.Should().Be(Path.GetFullPath("/videos/talk.mp4"));
+        manifest.DurationSeconds.Should().Be(10.0);
+        manifest.TimeFormat.Should().Be("HH:MM:SS.mmm");
+        manifest.KeyframeCount.Should().Be(4);
+        manifest.Keyframes.Should().HaveCount(4);
+
+        manifest.Keyframes.Select(entry => entry.Ordinal).Should().Equal(1, 2, 3, 4);
+        manifest.Keyframes.Select(entry => entry.File).Should().Equal(
+            "keyframes/kf_000001.jpg",
+            "keyframes/kf_000002.jpg",
+            "keyframes/kf_000003.jpg",
+            "keyframes/kf_000004.jpg");
+        manifest.Keyframes.Select(entry => entry.TimestampSeconds).Should().Equal(0.0, 2.0, 4.0, 6.0);
+        manifest.Keyframes.Select(entry => entry.EndTimestampSeconds).Should().Equal(2.0, 4.0, 6.0, 10.0);
+        manifest.Keyframes[0].Timestamp.Should().Be("00:00:00.000");
+        manifest.Keyframes[3].EndTimestamp.Should().Be("00:00:10.000");
+        manifest.Keyframes.Should().OnlyContain(entry => !entry.TimestampEstimated);
+
+        var audioReference = manifest.Audio.Should().ContainSingle().Subject;
+        audioReference.File.Should().Be("audio/audio_01_eng.wav");
+        audioReference.Language.Should().Be("eng");
+        audioReference.Description.Should().Be(audio.Description);
+    }
+
+    [Fact]
+    public void BuildFinal_KeepsOnlyDeduplicatedFramesAndSkipsRemovedRanges()
+    {
+        using var temp = new TempDirectory();
+        var extracted = CreateKeyframePaths(temp.Path, 4);
         var deduplication = new DeduplicationResult
         {
             TotalFiles = 4,
@@ -20,200 +63,188 @@ public sealed class KeyframeManifestWriterTests
             RemovedFiles = 2,
             KeptPaths =
             [
-                Path.Combine(output, "final_keyframes", "kf_000001.jpg"),
-                Path.Combine(output, "final_keyframes", "kf_000003.jpg"),
+                Path.Combine(temp.Path, "final_keyframes", "kf_000001.jpg"),
+                Path.Combine(temp.Path, "final_keyframes", "kf_000003.jpg"),
             ],
             RemovedPaths =
             [
-                Path.Combine(output, "keyframes", "kf_000002.jpg"),
-                Path.Combine(output, "keyframes", "kf_000004.jpg"),
+                Path.Combine(temp.Path, "keyframes", "kf_000002.jpg"),
+                Path.Combine(temp.Path, "keyframes", "kf_000004.jpg"),
             ],
         };
 
-        var audio = new AudioStreamResult
-        {
-            OutputPath = Path.Combine(output, "audio", "audio_01_eng.wav"),
-            Description = "Audio #1 (stream 1) - eng - aac, 1ch, 48000 Hz",
-            Stream = new AudioStreamInfo { Language = "eng" },
-        };
-
-        var manifest = KeyframeManifestWriter.Build(
+        var manifest = KeyframeManifestWriter.BuildFinal(
             "/videos/talk.mp4",
             10.0,
             extracted,
             [0.0, 2.0, 4.0, 6.0],
-            [audio],
-            output,
-            deduplication);
-
-        manifest.Video.Should().Be(Path.GetFullPath("/videos/talk.mp4"));
-        manifest.DurationSeconds.Should().Be(10.0);
-        manifest.TimeFormat.Should().Be("HH:MM:SS.mmm");
-
-        var audioReference = manifest.Audio.Should().ContainSingle().Subject;
-        audioReference.File.Should().Be("audio/audio_01_eng.wav");
-        audioReference.Language.Should().Be("eng");
-        audioReference.Description.Should().Be(audio.Description);
-
-        manifest.Keyframes.Should().HaveCount(4);
-
-        var first = manifest.Keyframes[0];
-        first.Ordinal.Should().Be(1);
-        first.SourceFile.Should().Be("keyframes/kf_000001.jpg");
-        first.File.Should().Be("final_keyframes/kf_000001.jpg");
-        first.TimestampSeconds.Should().Be(0.0);
-        first.Timestamp.Should().Be("00:00:00.000");
-        first.Kept.Should().BeTrue();
-        first.TimestampEstimated.Should().BeFalse();
-        first.EndTimestampSeconds.Should().Be(4.0);
-        first.EndTimestamp.Should().Be("00:00:04.000");
-
-        var second = manifest.Keyframes[1];
-        second.Ordinal.Should().Be(2);
-        second.SourceFile.Should().Be("keyframes/kf_000002.jpg");
-        second.File.Should().Be("keyframes/kf_000002.jpg");
-        second.Kept.Should().BeFalse();
-        second.EndTimestampSeconds.Should().BeNull();
-        second.EndTimestamp.Should().BeNull();
-
-        var third = manifest.Keyframes[2];
-        third.Ordinal.Should().Be(3);
-        third.File.Should().Be("final_keyframes/kf_000003.jpg");
-        third.Kept.Should().BeTrue();
-        third.TimestampSeconds.Should().Be(4.0);
-        third.EndTimestampSeconds.Should().Be(10.0);
-        third.EndTimestamp.Should().Be("00:00:10.000");
-
-        var fourth = manifest.Keyframes[3];
-        fourth.File.Should().Be("keyframes/kf_000004.jpg");
-        fourth.Kept.Should().BeFalse();
-        fourth.EndTimestampSeconds.Should().BeNull();
-    }
-
-    [Fact]
-    public void Build_WithoutDeduplication_KeepsEveryFrame()
-    {
-        using var temp = new TempDirectory();
-        var extracted = CreateKeyframePaths(temp.Path, 3);
-
-        var manifest = KeyframeManifestWriter.Build(
-            "/videos/talk.mp4",
-            3.0,
-            extracted,
-            [0.0, 1.0, 2.0],
             [],
             temp.Path,
-            deduplication: null);
+            deduplication);
 
-        manifest.Keyframes.Should().HaveCount(3);
-        manifest.Keyframes.Should().OnlyContain(entry => entry.Kept);
-        manifest.Keyframes.Should().OnlyContain(
-            entry => entry.File.StartsWith("keyframes/", StringComparison.Ordinal) &&
-                     entry.File == entry.SourceFile);
-        manifest.Keyframes[0].EndTimestampSeconds.Should().Be(1.0);
-        manifest.Keyframes[1].EndTimestampSeconds.Should().Be(2.0);
-        manifest.Keyframes[2].EndTimestampSeconds.Should().Be(3.0);
+        manifest.KeyframeCount.Should().Be(2);
+        manifest.Keyframes.Should().HaveCount(2);
+        manifest.Keyframes.Select(entry => entry.Ordinal).Should().Equal(1, 3);
+        manifest.Keyframes.Select(entry => entry.File).Should().Equal(
+            "final_keyframes/kf_000001.jpg",
+            "final_keyframes/kf_000003.jpg");
+        manifest.Keyframes.Select(entry => entry.TimestampSeconds).Should().Equal(0.0, 4.0);
+        manifest.Keyframes.Select(entry => entry.EndTimestampSeconds).Should().Equal(4.0, 10.0);
+        manifest.Keyframes[0].EndTimestamp.Should().Be("00:00:04.000");
+        manifest.Keyframes[1].EndTimestamp.Should().Be("00:00:10.000");
     }
 
     [Fact]
-    public void Build_WithTimestampCountMismatch_EstimatesEveryTimestamp()
+    public void BuildAll_WithTimestampCountMismatch_EstimatesEveryTimestamp()
     {
         using var temp = new TempDirectory();
         var extracted = CreateKeyframePaths(temp.Path, 4);
 
-        var manifest = KeyframeManifestWriter.Build(
+        var manifest = KeyframeManifestWriter.BuildAll(
+            "/videos/talk.mp4",
+            10.0,
+            extracted,
+            [1.0, 2.0, 3.0],
+            [],
+            temp.Path);
+
+        manifest.Keyframes.Should().HaveCount(4);
+        manifest.Keyframes.Should().OnlyContain(entry => entry.TimestampEstimated);
+        manifest.Keyframes.Select(entry => entry.TimestampSeconds)
+            .Should().BeInAscendingOrder()
+            .And.Equal(0.0, 2.5, 5.0, 7.5);
+        manifest.Keyframes.Select(entry => entry.EndTimestampSeconds).Should().Equal(2.5, 5.0, 7.5, 10.0);
+    }
+
+    [Fact]
+    public void BuildFinal_WithTimestampCountMismatch_EstimatesEveryTimestamp()
+    {
+        using var temp = new TempDirectory();
+        var extracted = CreateKeyframePaths(temp.Path, 4);
+        var deduplication = new DeduplicationResult
+        {
+            TotalFiles = 4,
+            KeptFiles = 2,
+            RemovedFiles = 2,
+            KeptPaths =
+            [
+                Path.Combine(temp.Path, "final_keyframes", "kf_000001.jpg"),
+                Path.Combine(temp.Path, "final_keyframes", "kf_000003.jpg"),
+            ],
+        };
+
+        var manifest = KeyframeManifestWriter.BuildFinal(
             "/videos/talk.mp4",
             10.0,
             extracted,
             [1.0, 2.0, 3.0],
             [],
             temp.Path,
-            deduplication: null);
+            deduplication);
 
-        manifest.Keyframes.Should().HaveCount(4);
+        manifest.Keyframes.Should().HaveCount(2);
         manifest.Keyframes.Should().OnlyContain(entry => entry.TimestampEstimated);
         manifest.Keyframes.Select(entry => entry.TimestampSeconds)
             .Should().BeInAscendingOrder()
-            .And.Equal(0.0, 2.5, 5.0, 7.5);
+            .And.Equal(0.0, 5.0);
+        manifest.Keyframes.Select(entry => entry.EndTimestampSeconds).Should().Equal(5.0, 10.0);
     }
 
     [Fact]
-    public void Build_WithShortTimestampList_EstimatesEveryTimestamp()
-    {
-        using var temp = new TempDirectory();
-        var extracted = CreateKeyframePaths(temp.Path, 4);
-
-        var manifest = KeyframeManifestWriter.Build(
-            "/videos/talk.mp4",
-            10.0,
-            extracted,
-            [1.0],
-            [],
-            temp.Path,
-            deduplication: null);
-
-        manifest.Keyframes.Should().HaveCount(4);
-        manifest.Keyframes.Should().OnlyContain(entry => entry.TimestampEstimated);
-        manifest.Keyframes.Select(entry => entry.TimestampSeconds)
-            .Should().BeInAscendingOrder()
-            .And.Equal(0.0, 2.5, 5.0, 7.5);
-    }
-
-    [Fact]
-    public void Build_WithoutTimestamps_EstimatesEveryTimestamp()
-    {
-        using var temp = new TempDirectory();
-        var extracted = CreateKeyframePaths(temp.Path, 3);
-
-        var manifest = KeyframeManifestWriter.Build(
-            "/videos/talk.mp4",
-            9.0,
-            extracted,
-            [],
-            [],
-            temp.Path,
-            deduplication: null);
-
-        manifest.Keyframes.Should().OnlyContain(entry => entry.TimestampEstimated);
-        manifest.Keyframes.Select(entry => entry.TimestampSeconds)
-            .Should().BeInAscendingOrder()
-            .And.Equal(0.0, 3.0, 6.0);
-    }
-
-    [Fact]
-    public void Build_RoundsTimestampsToMilliseconds()
+    public void BuildFinal_WhenKeptPathDoesNotMatchExtractedKeyframe_Throws()
     {
         using var temp = new TempDirectory();
         var extracted = CreateKeyframePaths(temp.Path, 2);
+        var deduplication = new DeduplicationResult
+        {
+            TotalFiles = 2,
+            KeptFiles = 1,
+            RemovedFiles = 1,
+            KeptPaths = [Path.Combine(temp.Path, "final_keyframes", "kf_999999.jpg")],
+        };
 
-        var manifest = KeyframeManifestWriter.Build(
+        Action act = () => KeyframeManifestWriter.BuildFinal(
             "/videos/talk.mp4",
             5.0,
             extracted,
-            [1.23456, 2.34567],
+            [0.0, 1.0],
             [],
             temp.Path,
-            deduplication: null);
+            deduplication);
 
-        manifest.Keyframes[0].TimestampSeconds.Should().Be(1.235);
-        manifest.Keyframes[0].Timestamp.Should().Be("00:00:01.235");
-        manifest.Keyframes[1].TimestampSeconds.Should().Be(2.346);
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*did not match an extracted keyframe*");
     }
 
     [Fact]
-    public void Build_WithOutOfOrderExactTimestamps_MarksClampedEntriesEstimated()
+    public void BuildFinal_WhenKeptCountDisagreesWithMatches_Throws()
+    {
+        using var temp = new TempDirectory();
+        var extracted = CreateKeyframePaths(temp.Path, 2);
+        var deduplication = new DeduplicationResult
+        {
+            TotalFiles = 2,
+            KeptFiles = 2,
+            RemovedFiles = 0,
+            KeptPaths = [Path.Combine(temp.Path, "final_keyframes", "kf_000001.jpg")],
+        };
+
+        Action act = () => KeyframeManifestWriter.BuildFinal(
+            "/videos/talk.mp4",
+            5.0,
+            extracted,
+            [0.0, 1.0],
+            [],
+            temp.Path,
+            deduplication);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*disagrees with the deduplication result*");
+    }
+
+    [Fact]
+    public void BuildFinal_WithSingleKeptFrame_EndsAtDuration()
+    {
+        using var temp = new TempDirectory();
+        var extracted = CreateKeyframePaths(temp.Path, 3);
+        var deduplication = new DeduplicationResult
+        {
+            TotalFiles = 3,
+            KeptFiles = 1,
+            RemovedFiles = 2,
+            KeptPaths = [Path.Combine(temp.Path, "final_keyframes", "kf_000002.jpg")],
+        };
+
+        var manifest = KeyframeManifestWriter.BuildFinal(
+            "/videos/talk.mp4",
+            9.0,
+            extracted,
+            [0.0, 3.0, 6.0],
+            [],
+            temp.Path,
+            deduplication);
+
+        var entry = manifest.Keyframes.Should().ContainSingle().Subject;
+        entry.Ordinal.Should().Be(2);
+        entry.File.Should().Be("final_keyframes/kf_000002.jpg");
+        entry.TimestampSeconds.Should().Be(3.0);
+        entry.EndTimestampSeconds.Should().Be(9.0);
+        entry.EndTimestamp.Should().Be("00:00:09.000");
+    }
+
+    [Fact]
+    public void BuildAll_WithOutOfOrderExactTimestamps_MarksClampedEntriesEstimated()
     {
         using var temp = new TempDirectory();
         var extracted = CreateKeyframePaths(temp.Path, 3);
 
-        var manifest = KeyframeManifestWriter.Build(
+        var manifest = KeyframeManifestWriter.BuildAll(
             "/videos/talk.mp4",
             10.0,
             extracted,
             [5.0, 2.0, 6.0],
             [],
-            temp.Path,
-            deduplication: null);
+            temp.Path);
 
         manifest.Keyframes.Select(entry => entry.TimestampSeconds)
             .Should().Equal(5.0, 5.0, 6.0);
@@ -222,23 +253,41 @@ public sealed class KeyframeManifestWriterTests
     }
 
     [Fact]
-    public void Build_WithNegativeExactTimestamp_MarksClampedEntryEstimated()
+    public void BuildAll_WithNegativeExactTimestamp_MarksClampedEntryEstimated()
     {
         using var temp = new TempDirectory();
         var extracted = CreateKeyframePaths(temp.Path, 2);
 
-        var manifest = KeyframeManifestWriter.Build(
+        var manifest = KeyframeManifestWriter.BuildAll(
             "/videos/talk.mp4",
             10.0,
             extracted,
             [-1.0, 2.0],
             [],
-            temp.Path,
-            deduplication: null);
+            temp.Path);
 
         manifest.Keyframes[0].TimestampSeconds.Should().Be(0.0);
         manifest.Keyframes[0].TimestampEstimated.Should().BeTrue();
         manifest.Keyframes[1].TimestampEstimated.Should().BeFalse();
+    }
+
+    [Fact]
+    public void BuildAll_RoundsTimestampsToMilliseconds()
+    {
+        using var temp = new TempDirectory();
+        var extracted = CreateKeyframePaths(temp.Path, 2);
+
+        var manifest = KeyframeManifestWriter.BuildAll(
+            "/videos/talk.mp4",
+            5.0,
+            extracted,
+            [1.23456, 2.34567],
+            [],
+            temp.Path);
+
+        manifest.Keyframes[0].TimestampSeconds.Should().Be(1.235);
+        manifest.Keyframes[0].Timestamp.Should().Be("00:00:01.235");
+        manifest.Keyframes[1].TimestampSeconds.Should().Be(2.346);
     }
 
     [Theory]
@@ -252,22 +301,56 @@ public sealed class KeyframeManifestWriterTests
     }
 
     [Fact]
-    public void Write_CreatesManifestFileAndReturnsAbsolutePath()
+    public void WriteAll_CreatesAllKeyframesManifest()
     {
         using var temp = new TempDirectory();
-        var manifest = new KeyframeManifest
-        {
-            Video = "/videos/talk.mp4",
-            DurationSeconds = 1.0,
-        };
+        var manifest = KeyframeManifestWriter.BuildAll(
+            "/videos/talk.mp4",
+            2.0,
+            CreateKeyframePaths(temp.Path, 2),
+            [0.0, 1.0],
+            [],
+            temp.Path);
 
-        var path = KeyframeManifestWriter.Write(temp.Path, manifest);
+        var path = KeyframeManifestWriter.WriteAll(temp.Path, manifest);
 
         path.Should().Be(Path.Combine(temp.Path, "keyframes.json"));
         File.Exists(path).Should().BeTrue();
         var json = File.ReadAllText(path);
-        json.Should().Contain("\"video\": \"/videos/talk.mp4\"");
-        json.Should().Contain("\"timeFormat\": \"HH:MM:SS.mmm\"");
+        json.Should().Contain("\"keyframeCount\": 2");
+        json.Should().Contain("\"file\": \"keyframes/kf_000001.jpg\"");
+        json.Should().NotContain("\"kept\"");
+    }
+
+    [Fact]
+    public void WriteFinal_CreatesFinalKeyframesManifest()
+    {
+        using var temp = new TempDirectory();
+        var extracted = CreateKeyframePaths(temp.Path, 2);
+        var deduplication = new DeduplicationResult
+        {
+            TotalFiles = 2,
+            KeptFiles = 1,
+            RemovedFiles = 1,
+            KeptPaths = [Path.Combine(temp.Path, "final_keyframes", "kf_000001.jpg")],
+        };
+        var manifest = KeyframeManifestWriter.BuildFinal(
+            "/videos/talk.mp4",
+            2.0,
+            extracted,
+            [0.0, 1.0],
+            [],
+            temp.Path,
+            deduplication);
+
+        var path = KeyframeManifestWriter.WriteFinal(temp.Path, manifest);
+
+        path.Should().Be(Path.Combine(temp.Path, "final_keyframes.json"));
+        File.Exists(path).Should().BeTrue();
+        var json = File.ReadAllText(path);
+        json.Should().Contain("\"keyframeCount\": 1");
+        json.Should().Contain("\"file\": \"final_keyframes/kf_000001.jpg\"");
+        json.Should().NotContain("\"kept\"");
     }
 
     private static string[] CreateKeyframePaths(string outputDirectory, int count)

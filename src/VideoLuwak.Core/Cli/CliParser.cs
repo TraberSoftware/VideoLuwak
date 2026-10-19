@@ -271,7 +271,7 @@ Options:
   -t, --threshold <int>     pHash Hamming distance for duplicate keyframes, >= 0 (default 8).
       --format <jpg|png>    Keyframe image format (default jpg).
       --quality <int>       JPEG quality 1..31, lower is better (default 2).
-      --no-dedup            Skip the deduplicated final_keyframes folder.
+      --no-dedup            Skip the final de-duplicated keyframes folder and manifest.
       --dedup               Enable keyframe deduplication (default).
       --no-stt-audio        Keep the source channel layout and sample rate.
       --stt-audio           Downmix/resample audio for speech-to-text (default).

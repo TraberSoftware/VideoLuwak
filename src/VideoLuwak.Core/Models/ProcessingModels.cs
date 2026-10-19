@@ -83,6 +83,9 @@ public sealed record ProcessingResult
     /// <summary>Absolute path of the generated <c>keyframes.json</c>, empty on failure.</summary>
     public string KeyframeManifestPath { get; init; } = string.Empty;
 
+    /// <summary>Absolute path of the generated <c>final_keyframes.json</c>, empty when de-duplication is disabled.</summary>
+    public string FinalKeyframeManifestPath { get; init; } = string.Empty;
+
     public long FinalKeyframesSizeBytes { get; init; }
 
     /// <summary>Total bytes of all produced artifacts (audio wavs + final keyframes).</summary>

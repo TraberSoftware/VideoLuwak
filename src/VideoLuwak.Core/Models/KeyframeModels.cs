@@ -1,42 +1,30 @@
 namespace VideoLuwak.Core.Models;
 
 /// <summary>
-/// One extracted keyframe together with its position in the source video and its
-/// de-duplication outcome.
+/// One keyframe together with the interval during which it represents the source video.
+/// Every entry always has a start and an end timestamp.
 /// </summary>
 public sealed record KeyframeEntry
 {
-    /// <summary>1-based extracted order (chronological).</summary>
+    /// <summary>Original 1-based extracted ordinal (gaps are allowed in the final manifest).</summary>
     public int Ordinal { get; init; }
 
-    /// <summary>
-    /// Path relative to the output directory, using forward slashes. Points at
-    /// <c>final_keyframes/...</c> when the frame was kept and <c>keyframes/...</c> otherwise.
-    /// </summary>
+    /// <summary>Path relative to the output directory, using forward slashes.</summary>
     public string File { get; init; } = string.Empty;
 
-    /// <summary>Path relative to the output directory of the originally extracted frame.</summary>
-    public string SourceFile { get; init; } = string.Empty;
-
-    /// <summary>Timestamp of the frame in the source video, rounded to milliseconds.</summary>
+    /// <summary>Start timestamp of the interval, rounded to milliseconds.</summary>
     public double TimestampSeconds { get; init; }
 
-    /// <summary>Timestamp formatted as <c>HH:MM:SS.mmm</c> using total hours.</summary>
+    /// <summary>Start timestamp formatted as <c>HH:MM:SS.mmm</c> using total hours.</summary>
     public string Timestamp { get; init; } = string.Empty;
 
-    /// <summary>
-    /// End of the interval this kept frame represents: the next kept frame's timestamp,
-    /// or the source duration for the last kept frame. <c>null</c> for removed frames.
-    /// </summary>
-    public double? EndTimestampSeconds { get; init; }
+    /// <summary>End of the interval: the next keyframe's start, or the source duration.</summary>
+    public double EndTimestampSeconds { get; init; }
 
-    /// <summary>Formatted <see cref="EndTimestampSeconds"/>, or <c>null</c> for removed frames.</summary>
-    public string? EndTimestamp { get; init; }
+    /// <summary>Formatted <see cref="EndTimestampSeconds"/>.</summary>
+    public string EndTimestamp { get; init; } = string.Empty;
 
-    /// <summary>True when the frame survived pHash de-duplication.</summary>
-    public bool Kept { get; init; }
-
-    /// <summary>True when the timestamp had to be estimated because probing returned none.</summary>
+    /// <summary>True when the timestamp had to be estimated or was clamped.</summary>
     public bool TimestampEstimated { get; init; }
 }
 
@@ -54,9 +42,9 @@ public sealed record KeyframeAudioReference
 }
 
 /// <summary>
-/// Machine-readable pairing of every extracted keyframe with its source timestamp,
-/// de-duplication outcome, representative time range and matching audio files.
-/// Serialized to <c>keyframes.json</c> inside the output directory.
+/// Machine-readable keyframe timeline. Serialized to <c>keyframes.json</c> (every
+/// extracted keyframe) and <c>final_keyframes.json</c> (deduplicated keyframes only)
+/// inside the output directory.
 /// </summary>
 public sealed record KeyframeManifest
 {
@@ -66,6 +54,8 @@ public sealed record KeyframeManifest
     public double DurationSeconds { get; init; }
 
     public string TimeFormat { get; init; } = "HH:MM:SS.mmm";
+
+    public int KeyframeCount { get; init; }
 
     public IReadOnlyList<KeyframeAudioReference> Audio { get; init; } = [];
 

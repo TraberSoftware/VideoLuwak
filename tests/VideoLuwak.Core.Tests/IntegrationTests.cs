@@ -109,44 +109,101 @@ public sealed class IntegrationTests
         Directory.GetFiles(finalDirectory).Should().HaveCount(result.KeyframesKept);
         (result.KeyframesKept + result.KeyframesRemoved).Should().Be(result.KeyframesExtracted);
 
-        // --- keyframe manifest -----------------------------------------------------
+        // --- all keyframe manifest -------------------------------------------------
         var manifestPath = Path.Combine(outputDirectory, "keyframes.json");
         File.Exists(manifestPath).Should().BeTrue();
         result.KeyframeManifestPath.Should().Be(manifestPath);
 
+        var allOrdinals = new HashSet<int>();
         using (var manifestDocument = JsonDocument.Parse(File.ReadAllText(manifestPath)))
         {
             var manifest = manifestDocument.RootElement;
             manifest.GetProperty("video").GetString().Should().Be(Path.GetFullPath(moviePath));
             manifest.GetProperty("timeFormat").GetString().Should().Be("HH:MM:SS.mmm");
             manifest.GetProperty("audio").GetArrayLength().Should().Be(result.AudioStreams.Count);
+            manifest.GetProperty("keyframeCount").GetInt32().Should().Be(result.KeyframesExtracted);
 
             var manifestKeyframes = manifest.GetProperty("keyframes");
             manifestKeyframes.GetArrayLength().Should().Be(result.KeyframesExtracted);
 
-            var previousTimestamp = -1.0;
-            var kept = 0;
+            var previousEnd = -1.0;
+            var entryCount = 0;
+            var lastEnd = -1.0;
             foreach (var keyframe in manifestKeyframes.EnumerateArray())
             {
-                var timestamp = keyframe.GetProperty("timestampSeconds").GetDouble();
-                timestamp.Should().BeGreaterThanOrEqualTo(0.0);
-                timestamp.Should().BeLessThanOrEqualTo(result.DurationSeconds + 0.001);
-                timestamp.Should().BeGreaterThanOrEqualTo(previousTimestamp);
-                previousTimestamp = timestamp;
+                keyframe.TryGetProperty("kept", out _).Should().BeFalse();
 
-                if (keyframe.GetProperty("kept").GetBoolean())
+                var ordinal = keyframe.GetProperty("ordinal").GetInt32();
+                ordinal.Should().Be(entryCount + 1);
+                allOrdinals.Add(ordinal);
+
+                var file = keyframe.GetProperty("file").GetString() ?? string.Empty;
+                file.Should().StartWith("keyframes/");
+                File.Exists(ToAbsolutePath(outputDirectory, file)).Should().BeTrue();
+
+                var start = keyframe.GetProperty("timestampSeconds").GetDouble();
+                start.Should().BeGreaterThanOrEqualTo(0.0);
+                start.Should().BeLessThanOrEqualTo(result.DurationSeconds + 0.001);
+                if (entryCount > 0)
                 {
-                    kept++;
-                    var end = keyframe.GetProperty("endTimestampSeconds").GetDouble();
-                    end.Should().BeGreaterThanOrEqualTo(timestamp);
+                    start.Should().Be(previousEnd);
                 }
-                else
-                {
-                    keyframe.GetProperty("endTimestampSeconds").ValueKind.Should().Be(JsonValueKind.Null);
-                }
+
+                keyframe.GetProperty("endTimestampSeconds").ValueKind.Should().Be(JsonValueKind.Number);
+                var end = keyframe.GetProperty("endTimestampSeconds").GetDouble();
+                end.Should().BeGreaterThanOrEqualTo(start);
+                previousEnd = end;
+                lastEnd = end;
+                entryCount++;
             }
 
-            kept.Should().Be(result.KeyframesKept);
+            entryCount.Should().Be(result.KeyframesExtracted);
+            lastEnd.Should().Be(manifest.GetProperty("durationSeconds").GetDouble());
+        }
+
+        // --- final keyframe manifest -----------------------------------------------
+        var finalManifestPath = Path.Combine(outputDirectory, "final_keyframes.json");
+        File.Exists(finalManifestPath).Should().BeTrue();
+        result.FinalKeyframeManifestPath.Should().Be(finalManifestPath);
+
+        using (var finalDocument = JsonDocument.Parse(File.ReadAllText(finalManifestPath)))
+        {
+            var finalManifest = finalDocument.RootElement;
+            finalManifest.GetProperty("keyframeCount").GetInt32().Should().Be(result.KeyframesKept);
+
+            var finalKeyframes = finalManifest.GetProperty("keyframes");
+            finalKeyframes.GetArrayLength().Should().Be(result.KeyframesKept);
+
+            var entries = finalKeyframes.EnumerateArray().ToArray();
+            var previousOrdinal = 0;
+            for (var i = 0; i < entries.Length; i++)
+            {
+                var entry = entries[i];
+                entry.TryGetProperty("kept", out _).Should().BeFalse();
+
+                var ordinal = entry.GetProperty("ordinal").GetInt32();
+                ordinal.Should().BeGreaterThan(previousOrdinal);
+                previousOrdinal = ordinal;
+                allOrdinals.Should().Contain(ordinal);
+
+                var file = entry.GetProperty("file").GetString() ?? string.Empty;
+                file.Should().StartWith("final_keyframes/");
+                File.Exists(ToAbsolutePath(outputDirectory, file)).Should().BeTrue();
+
+                var start = entry.GetProperty("timestampSeconds").GetDouble();
+                var end = entry.GetProperty("endTimestampSeconds").GetDouble();
+                end.Should().BeGreaterThanOrEqualTo(start);
+
+                if (i > 0)
+                {
+                    start.Should().Be(entries[i - 1].GetProperty("endTimestampSeconds").GetDouble());
+                }
+
+                if (i == entries.Length - 1)
+                {
+                    end.Should().Be(finalManifest.GetProperty("durationSeconds").GetDouble());
+                }
+            }
         }
 
         // --- persisted result ------------------------------------------------------
@@ -159,6 +216,7 @@ public sealed class IntegrationTests
         persisted.KeyframesKept.Should().Be(result.KeyframesKept);
         persisted.KeyframesRemoved.Should().Be(result.KeyframesRemoved);
         persisted.KeyframeManifestPath.Should().Be(manifestPath);
+        persisted.FinalKeyframeManifestPath.Should().Be(finalManifestPath);
         persisted.AudioStreams.Should().HaveCount(2);
     }
 
@@ -250,21 +308,26 @@ public sealed class IntegrationTests
 
         var manifestPath = Path.Combine(outputDirectory, "keyframes.json");
         File.Exists(manifestPath).Should().BeTrue();
+        result.KeyframeManifestPath.Should().Be(manifestPath);
+        result.FinalKeyframeManifestPath.Should().BeEmpty();
+        File.Exists(Path.Combine(outputDirectory, "final_keyframes.json")).Should().BeFalse();
+
         using var manifestDocument = JsonDocument.Parse(File.ReadAllText(manifestPath));
         var manifestKeyframes = manifestDocument.RootElement.GetProperty("keyframes");
         manifestKeyframes.GetArrayLength().Should().Be(result.KeyframesExtracted);
         foreach (var keyframe in manifestKeyframes.EnumerateArray())
         {
-            keyframe.GetProperty("kept").GetBoolean().Should().BeTrue();
-            keyframe.GetProperty("endTimestampSeconds").ValueKind.Should().NotBe(JsonValueKind.Null);
+            keyframe.TryGetProperty("kept", out _).Should().BeFalse();
+            keyframe.GetProperty("endTimestampSeconds").ValueKind.Should().Be(JsonValueKind.Number);
 
             var file = keyframe.GetProperty("file").GetString() ?? string.Empty;
             file.Should().StartWith("keyframes/");
-            file.Should().Be(keyframe.GetProperty("sourceFile").GetString());
-            File.Exists(Path.Combine(outputDirectory, file.Replace('/', Path.DirectorySeparatorChar)))
-                .Should().BeTrue();
+            File.Exists(ToAbsolutePath(outputDirectory, file)).Should().BeTrue();
         }
     }
+
+    private static string ToAbsolutePath(string outputDirectory, string relativePath) =>
+        Path.Combine(outputDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
 
     private static void CreateVideo(
         string ffmpeg,
