@@ -37,3 +37,17 @@ FFmpeg project.
 The test project uses FluentAssertions, xUnit, coverlet, and the Microsoft .NET Test SDK. These
 packages are used only to build and run the test suite and are not part of the published Windows,
 Linux, or macOS artifacts.
+
+## Website icon assets
+
+The static site in `site/` embeds the following open-source icon sets as inline SVG. They are served
+with the website only and are not part of the published application binaries.
+
+| Component | License | Project |
+| --- | --- | --- |
+| Lucide icons | ISC | <https://lucide.dev> |
+| Material Design Icons (brand icons) | Apache 2.0 | <https://pictogrammers.com/library/mdi/> |
+
+Lucide is © Lucide Contributors. Material Design Icons are © Pictogrammers. License texts:
+[Lucide ISC](https://github.com/lucide-icons/lucide/blob/main/LICENSE) and
+[Material Design Icons Apache 2.0](https://github.com/Templarian/MaterialDesign/blob/master/LICENSE).
